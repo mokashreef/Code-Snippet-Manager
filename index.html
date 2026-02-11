@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Code Snippet Manager - أداة احترافية لإدارة وتخزين مقاطع الأكواد البرمجية">
+    <title>Code Snippet Manager | مدير الأكواد البرمجية</title>
+    
+    <!-- Prism.js for Code Highlighting -->
+    <link rel="stylesheet" href="lib/prism/prism.css">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M9 22L2 16L9 10" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M23 10L30 16L23 22" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 6L13 26" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round"/>
+                        <defs>
+                            <linearGradient id="gradient" x1="2" y1="16" x2="30" y2="16">
+                                <stop offset="0%" stop-color="#00d4ff"/>
+                                <stop offset="100%" stop-color="#9d4edd"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <h1>Code Snippet Manager</h1>
+                </div>
+                <button class="btn btn-primary" id="addSnippetBtn">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                        <path d="M10 4V16M4 10H16" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                    إضافة كود جديد
+                </button>
+            </div>
+            
+            <!-- Search Bar -->
+            <div class="search-container">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                    <circle cx="9" cy="9" r="6" stroke-width="2"/>
+                    <path d="M14 14L18 18" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-input" 
+                    placeholder="ابحث في الأكواد، العناوين، أو الوسوم..."
+                    autocomplete="off"
+                >
+                <span class="search-count" id="searchCount"></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Tags Filter Section -->
+            <div class="tags-section" id="tagsSection">
+                <div class="tags-header">
+                    <h2>الوسوم</h2>
+                    <button class="btn-text" id="clearFilterBtn" style="display: none;">مسح الفلتر</button>
+                </div>
+                <div class="tags-container" id="tagsContainer">
+                    <!-- Tags will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Snippets Grid -->
+            <div class="snippets-section">
+                <div class="snippets-header">
+                    <h2>الأكواد المحفوظة</h2>
+                    <span class="snippets-count" id="snippetsCount">0 كود</span>
+                </div>
+                <div class="snippets-grid" id="snippetsGrid">
+                    <!-- Snippet cards will be rendered here -->
+                </div>
+                
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState">
+                    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="60" cy="60" r="50" stroke="url(#emptyGradient)" stroke-width="2" opacity="0.2"/>
+                        <path d="M35 70L25 60L35 50" stroke="url(#emptyGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+                        <path d="M85 50L95 60L85 70" stroke="url(#emptyGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
+                        <path d="M70 40L50 80" stroke="url(#emptyGradient)" stroke-width="3" stroke-linecap="round" opacity="0.3"/>
+                        <defs>
+                            <linearGradient id="emptyGradient" x1="25" y1="60" x2="95" y2="60">
+                                <stop offset="0%" stop-color="#00d4ff"/>
+                                <stop offset="100%" stop-color="#9d4edd"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <h3>لا توجد أكواد محفوظة بعد</h3>
+                    <p>ابدأ بإضافة أول كود برمجي لك!</p>
+                    <button class="btn btn-primary" onclick="document.getElementById('addSnippetBtn').click()">
+                        إضافة كود الآن
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Add/Edit Snippet Modal -->
+    <div class="modal" id="snippetModal">
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">إضافة كود جديد</h2>
+                <button class="btn-close" id="closeModalBtn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M18 6L6 18M6 6L18 18" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="snippetForm" class="snippet-form">
+                <input type="hidden" id="snippetId">
+                
+                <div class="form-group">
+                    <label for="snippetTitle">عنوان الكود *</label>
+                    <input 
+                        type="text" 
+                        id="snippetTitle" 
+                        class="form-input" 
+                        placeholder="مثال: دالة لحساب المجموع"
+                        required
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="snippetLanguage">لغة البرمجة *</label>
+                    <select id="snippetLanguage" class="form-select" required>
+                        <option value="">-- اختر اللغة --</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="python">Python</option>
+                        <option value="php">PHP</option>
+                        <option value="html">HTML</option>
+                        <option value="css">CSS</option>
+                        <option value="sql">SQL</option>
+                        <option value="java">Java</option>
+                        <option value="cpp">C++</option>
+                        <option value="csharp">C#</option>
+                        <option value="typescript">TypeScript</option>
+                        <option value="json">JSON</option>
+                        <option value="markdown">Markdown</option>
+                        <option value="bash">Bash/Shell</option>
+                        <option value="ruby">Ruby</option>
+                        <option value="go">Go</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="snippetCode">الكود البرمجي *</label>
+                    <textarea 
+                        id="snippetCode" 
+                        class="form-textarea" 
+                        rows="10"
+                        placeholder="// اكتب الكود هنا..."
+                        required
+                    ></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="snippetDescription">وصف الكود (اختياري)</label>
+                    <input 
+                        type="text" 
+                        id="snippetDescription" 
+                        class="form-input" 
+                        placeholder="شرح مختصر لما يفعله الكود"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="snippetTags">الوسوم (اختياري)</label>
+                    <input 
+                        type="text" 
+                        id="snippetTags" 
+                        class="form-input" 
+                        placeholder="أدخل الوسوم مفصولة بفواصل (مثال: array, function, utility)"
+                    >
+                    <small class="form-hint">افصل بين الوسوم باستخدام الفاصلة (,)</small>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                            <path d="M16 10L8 18L4 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        حفظ الكود
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <div class="toast-content">
+            <svg class="toast-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                <path d="M16 10L8 18L4 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="toast-message" id="toastMessage"></span>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="lib/prism/prism.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
