@@ -30,38 +30,30 @@ function loadTags() {
     ui.renderTagFilters(tags, state.currentFilter);
 }
 
-/**
- * Set up all event listeners
- */
+
 function setupEventListeners() {
-    // Add snippet button
     document.getElementById('addSnippetBtn').addEventListener('click', () => {
         ui.openModal();
     });
     
-    // Close modal buttons
     document.getElementById('closeModalBtn').addEventListener('click', ui.closeModal);
     document.getElementById('cancelBtn').addEventListener('click', ui.closeModal);
     document.getElementById('modalBackdrop').addEventListener('click', ui.closeModal);
     
-    // Close modal with Escape key
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             ui.closeModal();
         }
     });
     
-    // Form submission
     document.getElementById('snippetForm').addEventListener('submit', handleFormSubmit);
     
-    // Search input with debounce
     const searchInput = document.getElementById('searchInput');
     searchInput.addEventListener('input', utils.debounce((e) => {
         state.searchQuery = e.target.value;
         loadSnippets();
     }, 300));
     
-    // Clear filter button
     document.getElementById('clearFilterBtn').addEventListener('click', () => {
         state.currentFilter = '';
         loadSnippets();
@@ -76,9 +68,7 @@ function setupEventListeners() {
     });
 }
 
-/**
- * Handle form submission
- */
+
 function handleFormSubmit(e) {
     e.preventDefault();
     
@@ -91,7 +81,6 @@ function handleFormSubmit(e) {
     const tagsString = document.getElementById('snippetTags').value;
     const tags = utils.parseTags(tagsString);
     
-    // Create snippet object
     const snippet = {
         id,
         title,
@@ -101,7 +90,6 @@ function handleFormSubmit(e) {
         tags
     };
     
-    // Save snippet
     const success = storage.saveSnippet(snippet);
     
     if (success) {
@@ -119,9 +107,7 @@ function handleFormSubmit(e) {
     }
 }
 
-/**
- * Edit snippet (called from global scope)
- */
+
 window.editSnippet = function(id) {
     const snippet = storage.getSnippet(id);
     if (snippet) {
