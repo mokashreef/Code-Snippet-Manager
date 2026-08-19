@@ -1,5 +1,3 @@
-// ui.js - UI rendering and component management
-
 import { escapeHtml, formatDate, getLanguageName, getLanguageColor, truncate } from './utils.js';
 
 /**
@@ -11,14 +9,12 @@ export function renderSnippets(snippets) {
     const emptyState = document.getElementById('emptyState');
     const snippetsCount = document.getElementById('snippetsCount');
     
-    // Update count
     const count = snippets.length;
     snippetsCount.textContent = count === 0 ? 'لا توجد أكواد' : 
         count === 1 ? 'كود واحد' : 
         count === 2 ? 'كودان' : 
         `${count} ${count <= 10 ? 'أكواد' : 'كود'}`;
     
-    // Show/hide empty state
     if (count === 0) {
         grid.innerHTML = '';
         emptyState.style.display = 'flex';
@@ -27,10 +23,8 @@ export function renderSnippets(snippets) {
     
     emptyState.style.display = 'none';
     
-    // Render snippet cards
     grid.innerHTML = snippets.map(snippet => renderSnippetCard(snippet)).join('');
     
-    // Highlight code blocks
     highlightCode();
 }
 
@@ -115,10 +109,8 @@ export function renderTagFilters(tags, activeTag = '') {
         return;
     }
     
-    // Show/hide clear filter button
     clearBtn.style.display = activeTag ? 'inline-block' : 'none';
     
-    // Render tag buttons
     container.innerHTML = tags.map(tag => `
         <button 
             class="tag-filter ${tag.name === activeTag ? 'active' : ''}" 
@@ -144,7 +136,6 @@ export function openModal(snippet = null) {
     form.reset();
     
     if (snippet) {
-        // Edit mode
         modalTitle.textContent = 'تعديل الكود';
         document.getElementById('snippetId').value = snippet.id;
         document.getElementById('snippetTitle').value = snippet.title;
@@ -153,24 +144,19 @@ export function openModal(snippet = null) {
         document.getElementById('snippetDescription').value = snippet.description || '';
         document.getElementById('snippetTags').value = snippet.tags ? snippet.tags.join(', ') : '';
     } else {
-        // Add mode
         modalTitle.textContent = 'إضافة كود جديد';
         document.getElementById('snippetId').value = '';
     }
     
-    // Show modal
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
     
-    // Focus first input
     setTimeout(() => {
         document.getElementById('snippetTitle').focus();
     }, 100);
 }
 
-/**
- * Close modal
- */
+
 export function closeModal() {
     const modal = document.getElementById('snippetModal');
     modal.classList.remove('active');
@@ -187,10 +173,8 @@ export function showToast(message, type = 'success') {
     const toastMessage = document.getElementById('toastMessage');
     const toastIcon = toast.querySelector('.toast-icon');
     
-    // Set message
     toastMessage.textContent = message;
     
-    // Set icon based on type
     if (type === 'success') {
         toastIcon.innerHTML = `
             <path d="M16 10L8 18L4 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -202,21 +186,16 @@ export function showToast(message, type = 'success') {
         `;
     }
     
-    // Add type class
     toast.className = `toast toast-${type}`;
     
-    // Show toast
     toast.classList.add('show');
     
-    // Hide after 3 seconds
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
 }
 
-/**
- * Trigger Prism syntax highlighting
- */
+
 export function highlightCode() {
     if (window.Prism) {
         Prism.highlightAll();
