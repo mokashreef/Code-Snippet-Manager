@@ -157,14 +157,12 @@ window.copySnippet = async function(id) {
  * Filter by tag (called from global scope)
  */
 window.filterByTag = function(tag) {
-    // Toggle filter
     if (state.currentFilter === tag) {
         state.currentFilter = '';
     } else {
         state.currentFilter = tag;
     }
     
-    // Clear search when filtering by tag
     state.searchQuery = '';
     document.getElementById('searchInput').value = '';
     
@@ -172,7 +170,6 @@ window.filterByTag = function(tag) {
     loadTags();
 };
 
-// Initialize when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
