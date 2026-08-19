@@ -1,43 +1,30 @@
-// app.js - Main application logic
-
 import * as storage from './storage.js';
 import * as ui from './ui.js';
 import * as utils from './utils.js';
 
-// Application state
 const state = {
     currentFilter: '',
     searchQuery: ''
 };
 
-/**
- * Initialize the application
- */
 function init() {
-    // Load and display all snippets
     loadSnippets();
     
-    // Load and display tags
     loadTags();
     
-    // Set up event listeners
     setupEventListeners();
     
     console.log('✅ Code Snippet Manager initialized');
 }
 
-/**
- * Load and render snippets
- */
+
 function loadSnippets() {
     const snippets = storage.searchSnippets(state.searchQuery, state.currentFilter);
     ui.renderSnippets(snippets);
     ui.updateSearchCount(snippets.length, state.searchQuery);
 }
 
-/**
- * Load and render tags
- */
+
 function loadTags() {
     const tags = storage.getAllTags();
     ui.renderTagFilters(tags, state.currentFilter);
