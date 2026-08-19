@@ -1,5 +1,3 @@
-// utils.js - Utility functions
-
 /**
  * Generate a unique ID (UUID v4)
  * @returns {string} Unique ID
@@ -27,27 +25,22 @@ export function formatDate(timestamp) {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
     
-    // Just now
     if (diffMins < 1) {
         return 'الآن';
     }
     
-    // Minutes ago
     if (diffMins < 60) {
         return `منذ ${diffMins} ${diffMins === 1 ? 'دقيقة' : diffMins === 2 ? 'دقيقتين' : 'دقائق'}`;
     }
     
-    // Hours ago
     if (diffHours < 24) {
         return `منذ ${diffHours} ${diffHours === 1 ? 'ساعة' : diffHours === 2 ? 'ساعتين' : 'ساعات'}`;
     }
     
-    // Days ago
     if (diffDays < 7) {
         return `منذ ${diffDays} ${diffDays === 1 ? 'يوم' : diffDays === 2 ? 'يومين' : 'أيام'}`;
     }
     
-    // Format as date
     return date.toLocaleDateString('ar-EG', {
         year: 'numeric',
         month: 'short',
@@ -87,13 +80,11 @@ export function escapeHtml(text) {
  */
 export async function copyToClipboard(text) {
     try {
-        // Modern Clipboard API
         if (navigator.clipboard && window.isSecureContext) {
             await navigator.clipboard.writeText(text);
             return true;
         }
         
-        // Fallback for older browsers
         const textArea = document.createElement('textarea');
         textArea.value = text;
         textArea.style.position = 'fixed';
@@ -204,7 +195,6 @@ export function getContrastColor(hexColor) {
     const g = parseInt(hex.substr(2, 2), 16);
     const b = parseInt(hex.substr(4, 2), 16);
     
-    // Calculate relative luminance
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
     return luminance > 0.5 ? 'black' : 'white';
