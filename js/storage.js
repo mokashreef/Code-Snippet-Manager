@@ -1,11 +1,6 @@
-// storage.js - localStorage management module
-
 const STORAGE_KEY = 'code_snippets';
 
-/**
- * Get all snippets from localStorage
- * @returns {Array} Array of snippet objects
- */
+
 export function getAllSnippets() {
     try {
         const data = localStorage.getItem(STORAGE_KEY);
@@ -41,10 +36,9 @@ export function saveSnippet(snippet) {
             snippet.updatedAt = new Date().toISOString();
             snippets[existingIndex] = snippet;
         } else {
-            // Add new snippet
             snippet.createdAt = new Date().toISOString();
             snippet.updatedAt = new Date().toISOString();
-            snippets.unshift(snippet); // Add to beginning
+            snippets.unshift(snippet); 
         }
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(snippets));
