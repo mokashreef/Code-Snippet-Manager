@@ -813,3 +813,140 @@ code, pre {
         padding: var(--spacing-sm);
     }
 }
+
+/* ==========================================
+   Light theme overrides & UI for commands/shortcuts
+   ========================================== */
+body[data-theme="light"] {
+  --color-primary: #0ea5e9;
+  --color-primary-dark: #0369a1;
+  --color-secondary: #7c3aed;
+  --color-accent: #ec4899;
+
+  --color-bg-main: #f3f7fb;
+  --color-bg-secondary: #eaf1f8;
+  --color-bg-tertiary: #ffffff;
+  --color-bg-card: rgba(255, 255, 255, 0.82);
+  --color-bg-modal: rgba(255, 255, 255, 0.96);
+
+  --color-text-primary: #111827;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748b;
+
+  --color-border: rgba(15, 23, 42, 0.12);
+  --color-border-hover: rgba(15, 23, 42, 0.2);
+
+  background: linear-gradient(135deg, #f5f7fb 0%, #dfeaf7 50%, #f5f7fb 100%);
+}
+
+.search-hint {
+  margin-top: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.command-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.command-palette.hidden {
+  display: none;
+}
+
+.command-palette-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.command-palette-panel {
+  position: relative;
+  width: min(560px, calc(100vw - 32px));
+  background: var(--color-bg-modal);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+  z-index: 1;
+}
+
+.command-palette-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  color: var(--color-text-primary);
+}
+
+.command-close-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+#commandPaletteInput {
+  width: 100%;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text-primary);
+  padding: 12px 14px;
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+#commandPaletteList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.command-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.02);
+  color: var(--color-text-primary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.command-item.selected,
+.command-item:hover {
+  background: rgba(0, 212, 255, 0.12);
+  border-color: rgba(0, 212, 255, 0.3);
+}
+
+.command-label {
+  font-weight: 600;
+}
+
+.command-hint {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.command-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 12px;
+}
+
