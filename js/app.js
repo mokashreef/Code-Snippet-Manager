@@ -13,6 +13,7 @@ function init() {
     loadTags();
     
     setupEventListeners();
+    setupSearchShortcuts();
     
     console.log('✅ Code Snippet Manager initialized');
 }
@@ -169,6 +170,56 @@ window.filterByTag = function(tag) {
     loadSnippets();
     loadTags();
 };
+
+/**
+ * Keyboard shortcuts for search
+ * - Ctrl/Cmd+K or Ctrl/Cmd+F : focus search input
+ * - / (slash) : focus search input when not typing elsewhere
+ * - Escape: blur search (if focused)
+ */
+function setupSearchShortcuts() {
+    const searchInput = document.getElementById('searchInput');
+    if (!searchInput) return;
+
+    function focusSearch() {
+        searchInput.focus();
+        // select text for quick replacement
+        try { searchInput.select(); } catch (e) {}
+    }
+
+    document.addEventListener('keydown', (e) => {
+        const active = document.activeElement;
+        const isEditing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+
+        // Ctrl/Cmd+K
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            focusSearch();
+            return;
+        }
+
+        // Ctrl/Cmd+F -> override browser find to focus our search
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            focusSearch();
+            return;
+        }
+
+        // Slash to quick focus (when not typing in an input)
+        if (e.key === '/' && !isEditing) {
+            e.preventDefault();
+            focusSearch();
+            return;
+        }
+
+        // Escape blurs the search input if focused
+        if (e.key === 'Escape') {
+            if (document.activeElement === searchInput) {
+                searchInput.blur();
+            }
+        }
+    });
+}
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
