@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'code_snippets';
 
+function generateId() {
+    return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+}
 
 export function getAllSnippets() {
     try {
@@ -36,6 +39,7 @@ export function saveSnippet(snippet) {
             snippet.updatedAt = new Date().toISOString();
             snippets[existingIndex] = snippet;
         } else {
+            if (!snippet.id) snippet.id = generateId();
             snippet.createdAt = new Date().toISOString();
             snippet.updatedAt = new Date().toISOString();
             snippets.unshift(snippet); 
@@ -146,19 +150,59 @@ export function exportSnippets() {
 
 /**
  * Import snippets from JSON
+ * If options.merge is true (default) the imported data will be merged with existing snippets
+ * If options.merge is false, the imported data will replace existing snippets
  * @param {string} jsonString - JSON string
- * @returns {boolean} Success status
+ * @param {Object} options - { merge: boolean }
+ * @returns {Object} { success: boolean, added: number, updated: number }
  */
-export function importSnippets(jsonString) {
+export function importSnippets(jsonString, options = { merge: true }) {
     try {
         const imported = JSON.parse(jsonString);
-        if (Array.isArray(imported)) {
-            localStorage.setItem(STORAGE_KEY, jsonString);
-            return true;
+        if (!Array.isArray(imported)) {
+            return { success: false, error: 'invalid_format' };
         }
-        return false;
+        
+        if (!options.merge) {
+            // Replace entirely
+            // Ensure every item has an id
+            const normalized = imported.map(item => {
+                if (!item.id) item.id = generateId();
+                return item;
+            });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+            return { success: true, added: normalized.length, updated: 0 };
+        }
+        
+        // Merge behavior
+        const existing = getAllSnippets();
+        const map = {};
+        existing.forEach(item => {
+            map[item.id] = item;
+        });
+        
+        let added = 0;
+        let updated = 0;
+        
+        imported.forEach(item => {
+            if (!item.id) item.id = generateId();
+            if (map[item.id]) {
+                // Update existing
+                map[item.id] = Object.assign({}, map[item.id], item, { updatedAt: new Date().toISOString() });
+                updated++;
+            } else {
+                // Add new
+                map[item.id] = Object.assign({}, item, { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+                added++;
+            }
+        });
+        
+        const merged = Object.values(map).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        
+        return { success: true, added, updated };
     } catch (error) {
         console.error('Error importing snippets:', error);
-        return false;
+        return { success: false, error: 'exception' };
     }
 }
