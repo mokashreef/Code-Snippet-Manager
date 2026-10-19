@@ -2,85 +2,22 @@ import * as storage from './storage.js';
 import * as ui from './ui.js';
 import * as utils from './utils.js';
 
-const THEME_KEY = 'snippet-theme';
-const SHORTCUTS_KEY = 'snippet-shortcuts-enabled';
-const HELP_KEY = 'snippet-help-shown';
-
 const state = {
     currentFilter: '',
-    searchQuery: '',
-    shortcutsEnabled: true,
-    paletteOpen: false
+    searchQuery: ''
+};
+
+let codeEditor = null; // CodeMirror instance
+let pendingImport = {
+    raw: null,
+    parsed: null
 };
 
 function init() {
-    initTheme();
     loadSnippets();
     loadTags();
     setupEventListeners();
-    setupSearchShortcuts();
-    setupThemeToggle();
-    setupCommandPalette();
-    maybeShowFirstTimeHelp();
     console.log('✅ Code Snippet Manager initialized');
-}
-
-function initTheme() {
-    const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
-    applyTheme(savedTheme);
-    state.shortcutsEnabled = localStorage.getItem(SHORTCUTS_KEY) !== 'false';
-    syncShortcutsButton();
-}
-
-function applyTheme(theme) {
-    document.body.setAttribute('data-theme', theme);
-    const label = document.getElementById('themeToggleLabel');
-    if (label) {
-        label.textContent = theme === 'dark' ? 'داكن' : 'فاتح';
-    }
-}
-
-function toggleTheme() {
-    const nextTheme = document.body.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-    localStorage.setItem(THEME_KEY, nextTheme);
-    applyTheme(nextTheme);
-}
-
-function setShortcutsEnabled(enabled) {
-    state.shortcutsEnabled = enabled;
-    localStorage.setItem(SHORTCUTS_KEY, String(enabled));
-    syncShortcutsButton();
-}
-
-function syncShortcutsButton() {
-    const btn = document.getElementById('shortcutsToggleBtn');
-    if (!btn) return;
-    const label = btn.querySelector('.shortcut-toggle-text');
-    const isOn = state.shortcutsEnabled;
-    btn.classList.toggle('is-off', !isOn);
-    if (label) {
-        label.textContent = isOn ? 'اختصارات: مفعل' : 'اختصارات: معطل';
-    }
-}
-
-function toggleShortcuts() {
-    setShortcutsEnabled(!state.shortcutsEnabled);
-    ui.showToast(state.shortcutsEnabled ? '✅ تم تفعيل اختصارات لوحة المفاتيح' : '⚠️ تم إيقاف اختصارات لوحة المفاتيح', 'success');
-}
-
-function maybeShowFirstTimeHelp() {
-    const hasShown = localStorage.getItem(HELP_KEY) === 'true';
-    if (!hasShown) {
-        localStorage.setItem(HELP_KEY, 'true');
-        setTimeout(() => {
-            openCommandPalette();
-            const paletteInput = document.getElementById('commandPaletteInput');
-            if (paletteInput) {
-                paletteInput.value = 'بحث';
-                renderCommandPaletteItems('بحث');
-            }
-        }, 600);
-    }
 }
 
 function loadSnippets() {
@@ -95,129 +32,125 @@ function loadTags() {
 }
 
 function setupEventListeners() {
-    const themeToggleBtn = document.getElementById('themeToggleBtn');
-    if (themeToggleBtn) {
-        themeToggleBtn.addEventListener('click', toggleTheme);
-    }
-
-    const shortcutsToggleBtn = document.getElementById('shortcutsToggleBtn');
-    if (shortcutsToggleBtn) {
-        shortcutsToggleBtn.addEventListener('click', toggleShortcuts);
-    }
-
+    // Add snippet button
     document.getElementById('addSnippetBtn').addEventListener('click', () => {
         ui.openModal();
+        // initialize editor slightly after modal opens
+        setTimeout(() => prepareEditorForModal(), 50);
     });
 
-    const exportBtn = document.getElementById('exportBtn');
-    if (exportBtn) {
-        exportBtn.addEventListener('click', handleExport);
-    }
+    // Close / cancel
+    document.getElementById('closeModalBtn').addEventListener('click', () => {
+        ui.closeModal();
+        clearEditor();
+    });
+    document.getElementById('cancelBtn').addEventListener('click', () => {
+        ui.closeModal();
+        clearEditor();
+    });
+    document.getElementById('modalBackdrop').addEventListener('click', () => {
+        ui.closeModal();
+        clearEditor();
+    });
 
-    const importBtn = document.getElementById('importBtn');
-    if (importBtn) {
-        importBtn.addEventListener('click', () => {
-            const input = document.getElementById('importFileInput');
-            if (input) {
-                input.value = '';
-                input.click();
-            }
-        });
-    }
-
-    const importFileInput = document.getElementById('importFileInput');
-    if (importFileInput) {
-        importFileInput.addEventListener('change', handleImportFile);
-    }
-
-    document.getElementById('closeModalBtn').addEventListener('click', ui.closeModal);
-    document.getElementById('cancelBtn').addEventListener('click', ui.closeModal);
-    document.getElementById('modalBackdrop').addEventListener('click', ui.closeModal);
-
+    // Keyboard ESC
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !state.paletteOpen) {
+        if (e.key === 'Escape') {
             ui.closeModal();
+            hideImportPreview();
+            clearEditor();
         }
     });
 
+    // Form submit
     document.getElementById('snippetForm').addEventListener('submit', handleFormSubmit);
 
+    // Search input with debounce
     const searchInput = document.getElementById('searchInput');
     searchInput.addEventListener('input', utils.debounce((e) => {
         state.searchQuery = e.target.value;
         loadSnippets();
     }, 300));
 
+    // Clear filter
     document.getElementById('clearFilterBtn').addEventListener('click', () => {
         state.currentFilter = '';
         loadSnippets();
         loadTags();
     });
 
+    // Auto-resize textarea (hidden when using editor) — keep for fallback
     const textarea = document.getElementById('snippetCode');
     textarea.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = this.scrollHeight + 'px';
     });
-}
 
-function handleExport() {
-    try {
-        const json = storage.exportSnippets();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-        a.href = url;
-        a.download = `snippets-${stamp}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        ui.showToast('✅ تم تصدير السنيبتات (JSON)', 'success');
-    } catch (error) {
-        console.error(error);
-        ui.showToast('❌ فشل التصدير', 'error');
-    }
-}
+    // Language change -> update editor mode
+    const langSelect = document.getElementById('snippetLanguage');
+    langSelect.addEventListener('change', (e) => {
+        setEditorModeForLanguage(e.target.value);
+    });
 
-async function handleImportFile(e) {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
+    // Export / Import / Restore
+    document.getElementById('exportBtn').addEventListener('click', handleExport);
+    document.getElementById('importBtn').addEventListener('click', () => {
+        document.getElementById('importFileInput').value = null;
+        document.getElementById('importFileInput').click();
+    });
+    document.getElementById('restoreBackupBtn').addEventListener('click', handleRestoreBackup);
 
-    try {
-        const text = await file.text();
-        const merge = confirm('هل تريد دمج البيانات المستوردة مع الحالية؟\nاضغط OK للدمج أو Cancel للاستبدال.');
-        const result = storage.importSnippets(text, { merge: !!merge });
+    // File input change
+    document.getElementById('importFileInput').addEventListener('change', handleImportFileInput);
 
-        if (result && result.success) {
-            const message = merge
-                ? `✅ تم الاستيراد: ${result.added} جديد(ة), ${result.updated} محدث(ة).`
-                : `✅ تم الاستبدال بنجاح (${result.added} عنصر).`;
-            ui.showToast(message, 'success');
-            loadSnippets();
-            loadTags();
-        } else {
-            ui.showToast('❌ ملف JSON غير صالح أو فشل الاستيراد', 'error');
+    // Import preview modal buttons
+    document.getElementById('importPreviewClose').addEventListener('click', hideImportPreview);
+    document.getElementById('cancelImportPreviewBtn').addEventListener('click', hideImportPreview);
+    document.getElementById('importPreviewMergeBtn').addEventListener('click', () => applyImport({ merge: true }));
+    document.getElementById('importPreviewReplaceBtn').addEventListener('click', () => applyImport({ merge: false }));
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        const meta = e.ctrlKey || e.metaKey;
+        if (meta && e.shiftKey && e.key.toLowerCase() === 'e') {
+            e.preventDefault();
+            handleExport();
         }
-    } catch (error) {
-        console.error(error);
-        ui.showToast('❌ حدث خطأ أثناء الاستيراد', 'error');
-    } finally {
-        e.target.value = '';
-    }
+
+        // Command palette (Ctrl/Cmd+K)
+        if (meta && !e.shiftKey && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            toggleCommandPalette();
+        }
+
+        // Quick find (/) focuses search
+        if (!meta && e.key === '/') {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+            e.preventDefault();
+            document.getElementById('searchInput').focus();
+        }
+    });
+
+    // Command palette close
+    document.getElementById('commandPaletteClose').addEventListener('click', hideCommandPalette);
+    document.getElementById('commandPaletteBackdrop').addEventListener('click', hideCommandPalette);
+    document.getElementById('commandPaletteInput').addEventListener('input', utils.debounce(handleCommandPaletteSearch, 150));
 }
 
 function handleFormSubmit(e) {
     e.preventDefault();
 
+    // Get form values
     const id = document.getElementById('snippetId').value || utils.generateId();
     const title = document.getElementById('snippetTitle').value.trim();
     const language = document.getElementById('snippetLanguage').value;
-    const code = document.getElementById('snippetCode').value.trim();
     const description = document.getElementById('snippetDescription').value.trim();
     const tagsString = document.getElementById('snippetTags').value;
     const tags = utils.parseTags(tagsString);
+
+    // Get code from editor (fallback to textarea)
+    const code = (codeEditor && typeof codeEditor.getValue === 'function') ? codeEditor.getValue() : document.getElementById('snippetCode').value.trim();
 
     const snippet = {
         id,
@@ -232,6 +165,7 @@ function handleFormSubmit(e) {
 
     if (success) {
         ui.closeModal();
+        clearEditor();
         loadSnippets();
         loadTags();
 
@@ -245,10 +179,82 @@ function handleFormSubmit(e) {
     }
 }
 
+// Open editor and populate when modal opens
+function prepareEditorForModal(initialCode = '') {
+    // Ensure CodeMirror is available
+    if (typeof CodeMirror === 'undefined') return;
+
+    const editorContainer = document.getElementById('snippetCodeEditor');
+    if (!editorContainer) return;
+
+    if (!codeEditor) {
+        codeEditor = CodeMirror(editorContainer, {
+            value: initialCode || document.getElementById('snippetCode').value || '',
+            mode: 'javascript',
+            theme: 'material-darker',
+            lineNumbers: true,
+            indentUnit: 2,
+            tabSize: 2,
+            autofocus: true,
+            viewportMargin: Infinity
+        });
+
+        // Sync editor changes back to hidden textarea if needed
+        codeEditor.on('change', () => {
+            const textarea = document.getElementById('snippetCode');
+            if (textarea) textarea.value = codeEditor.getValue();
+        });
+    } else {
+        // set existing value if provided
+        if (initialCode) codeEditor.setValue(initialCode);
+    }
+
+    // set mode according to selected language
+    const lang = document.getElementById('snippetLanguage').value;
+    setEditorModeForLanguage(lang);
+}
+
+function clearEditor() {
+    if (!codeEditor) return;
+    codeEditor.setValue('');
+    // optionally destroy instance? keep it to reuse
+}
+
+function setEditorModeForLanguage(lang) {
+    if (!codeEditor || typeof codeEditor.setOption !== 'function') return;
+
+    const map = {
+        javascript: 'javascript',
+        typescript: 'javascript',
+        html: 'htmlmixed',
+        css: 'css',
+        python: 'python',
+        php: 'php',
+        sql: 'sql',
+        json: { name: 'javascript', json: true },
+        markdown: 'markdown',
+        bash: 'shell'
+    };
+
+    const mode = map[lang] || 'javascript';
+    codeEditor.setOption('mode', mode);
+}
+
+// Override global functions that previously existed so we can attach editor logic
 window.editSnippet = function(id) {
     const snippet = storage.getSnippet(id);
     if (snippet) {
+        // fill form fields then open modal
+        document.getElementById('snippetId').value = snippet.id || '';
+        document.getElementById('snippetTitle').value = snippet.title || '';
+        document.getElementById('snippetLanguage').value = snippet.language || '';
+        document.getElementById('snippetDescription').value = snippet.description || '';
+        document.getElementById('snippetTags').value = (snippet.tags || []).join(', ');
+
         ui.openModal(snippet);
+
+        // initialize editor with snippet code after modal is visible
+        setTimeout(() => prepareEditorForModal(snippet.code || ''), 60);
     }
 };
 
@@ -298,163 +304,189 @@ window.filterByTag = function(tag) {
     loadTags();
 };
 
-function setupSearchShortcuts() {
-    const searchInput = document.getElementById('searchInput');
-    if (!searchInput) return;
+// Export handler (download JSON file)
+function handleExport() {
+    const json = storage.exportSnippets();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const now = new Date();
+    const fname = `snippets_${now.toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+    a.href = url;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    ui.showToast('⬇️ تم تصدير السنيبتات', 'success');
+}
 
-    function focusSearch() {
-        searchInput.focus();
+// Import flow
+function handleImportFileInput(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const raw = ev.target.result;
         try {
-            searchInput.select();
-        } catch (error) {}
-    }
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) throw new Error('تنسيق غير صالح: يجب أن يكون مصفوفة من السنيبتات');
 
-    document.addEventListener('keydown', (e) => {
-        if (!state.shortcutsEnabled) return;
-
-        const active = document.activeElement;
-        const isEditing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-            e.preventDefault();
-            openCommandPalette();
-            return;
+            pendingImport.raw = raw;
+            pendingImport.parsed = parsed;
+            showImportPreview(parsed);
+        } catch (err) {
+            ui.showToast('❌ ملف غير صالح: ' + err.message, 'error');
         }
-
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-            e.preventDefault();
-            focusSearch();
-            return;
-        }
-
-        if (e.key === '/' && !isEditing && !state.paletteOpen) {
-            e.preventDefault();
-            focusSearch();
-            return;
-        }
-
-        if (e.key === 'Escape') {
-            if (state.paletteOpen) {
-                closeCommandPalette();
-                return;
-            }
-            if (document.activeElement === searchInput) {
-                searchInput.blur();
-            }
-        }
-    });
+    };
+    reader.readAsText(file, 'utf-8');
 }
 
-function setupCommandPalette() {
-    const palette = document.getElementById('commandPalette');
-    const paletteInput = document.getElementById('commandPaletteInput');
+function showImportPreview(parsed) {
+    // compute summary
+    const existing = storage.getAllSnippets();
+    const existingIds = new Set(existing.map(s => s.id));
+    let wouldAdd = 0;
+    let wouldUpdate = 0;
+    const items = [];
+
+    parsed.forEach((item, idx) => {
+        const title = item.title || item.id || `سنيبت ${idx + 1}`;
+        if (item.id && existingIds.has(item.id)) {
+            wouldUpdate++;
+            items.push({ title, type: 'update' });
+        } else {
+            wouldAdd++;
+            items.push({ title, type: 'add' });
+        }
+    });
+
+    const summaryEl = document.getElementById('importPreviewSummary');
+    summaryEl.innerHTML = `<p>سيتم إضافة <strong>${wouldAdd}</strong> سنيبت، وتحديث <strong>${wouldUpdate}</strong> سنيبت (إن وجدت مطابقات بالـ id).</p>`;
+
+    const listEl = document.getElementById('importPreviewList');
+    listEl.innerHTML = '';
+    const maxShow = 50;
+    items.slice(0, maxShow).forEach(it => {
+        const div = document.createElement('div');
+        div.className = 'import-preview-item';
+        div.textContent = `${it.type === 'add' ? 'إضافة' : 'تحديث'} — ${it.title}`;
+        listEl.appendChild(div);
+    });
+    if (items.length > maxShow) {
+        const more = document.createElement('div');
+        more.className = 'import-preview-more';
+        more.textContent = `و ${items.length - maxShow} المزيد...`;
+        listEl.appendChild(more);
+    }
+
+    // show modal
+    const modal = document.getElementById('importPreviewModal');
+    if (modal) modal.style.display = 'block';
+}
+
+function hideImportPreview() {
+    const modal = document.getElementById('importPreviewModal');
+    if (modal) modal.style.display = 'none';
+    pendingImport.raw = null;
+    pendingImport.parsed = null;
+}
+
+async function applyImport(options = { merge: true }) {
+    if (!pendingImport.raw) return;
+
+    // create backup before replace
+    if (!options.merge) {
+        const ok = storage.backupCurrent();
+        if (!ok) {
+            ui.showToast('❌ فشل إنشاء النسخة الاحتياطية', 'error');
+            return;
+        }
+    }
+
+    const result = storage.importSnippets(pendingImport.raw, { merge: options.merge });
+
+    if (result && result.success) {
+        hideImportPreview();
+        loadSnippets();
+        loadTags();
+        ui.showToast(`✅ اكتملت العملية — تمت الإضافة: ${result.added}، التحديث: ${result.updated}`, 'success');
+    } else {
+        ui.showToast('❌ فشل الاستيراد: ' + (result.error || 'خطأ غير معروف'), 'error');
+    }
+}
+
+function handleRestoreBackup() {
+    const backup = storage.getBackup();
+    if (!backup) {
+        ui.showToast('ℹ️ لا توجد نسخة احتياطية محفوظة', 'warning');
+        return;
+    }
+
+    const confirmed = ui.confirm(`آخر نسخة احتياطية: ${backup.createdAt}. هل تريد الاستعادة؟`);
+    if (!confirmed) return;
+
+    const ok = storage.restoreBackup();
+    if (ok) {
+        loadSnippets();
+        loadTags();
+        ui.showToast('✅ تم استعادة النسخة الاحتياطية', 'success');
+    } else {
+        ui.showToast('❌ فشل استعادة النسخة', 'error');
+    }
+}
+
+// Simple command palette (search commands)
+function toggleCommandPalette() {
+    const el = document.getElementById('commandPalette');
+    if (!el) return;
+    if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        el.setAttribute('aria-hidden', 'false');
+        document.getElementById('commandPaletteInput').focus();
+        populateCommandPalette();
+    } else {
+        hideCommandPalette();
+    }
+}
+
+function hideCommandPalette() {
+    const el = document.getElementById('commandPalette');
+    if (!el) return;
+    el.classList.add('hidden');
+    el.setAttribute('aria-hidden', 'true');
+}
+
+function populateCommandPalette() {
     const list = document.getElementById('commandPaletteList');
-    if (!palette || !paletteInput || !list) return;
+    list.innerHTML = '';
+    const commands = [
+        { id: 'add', title: 'أضف كود جديد', action: () => { ui.openModal(); setTimeout(()=>prepareEditorForModal(),50); hideCommandPalette(); } },
+        { id: 'export', title: 'تصدير السنيبتات', action: () => { handleExport(); hideCommandPalette(); } },
+        { id: 'import', title: 'استيراد سنيبتات', action: () => { document.getElementById('importFileInput').click(); hideCommandPalette(); } },
+        { id: 'restore', title: 'استعادة آخر نسخة احتياطية', action: () => { handleRestoreBackup(); hideCommandPalette(); } }
+    ];
 
-    function getActions() {
-        return [
-            { id: 'focus-search', label: 'بحث', hint: 'تحديد حقل البحث', action: () => focusSearchInput() },
-            { id: 'add-snippet', label: 'إضافة كود جديد', hint: 'فتح نافذة الإضافة', action: () => { ui.openModal(); closeCommandPalette(); } },
-            { id: 'toggle-theme', label: 'تبديل الثيم', hint: 'داكن/فاتح', action: () => { toggleTheme(); closeCommandPalette(); } },
-            { id: 'export-snippets', label: 'تصدير', hint: 'تصدير JSON', action: () => { handleExport(); closeCommandPalette(); } },
-            { id: 'import-snippets', label: 'استيراد', hint: 'استيراد JSON', action: () => { const input = document.getElementById('importFileInput'); if (input) { input.click(); } closeCommandPalette(); } },
-            { id: 'toggle-shortcuts', label: state.shortcutsEnabled ? 'إيقاف الاختصارات' : 'تفعيل الاختصارات', hint: 'إدخال/إيقاف', action: () => { toggleShortcuts(); closeCommandPalette(); } },
-            { id: 'clear-filter', label: 'مسح الفلتر', hint: 'إزالة التصفية الحالية', action: () => { state.currentFilter = ''; state.searchQuery = ''; document.getElementById('searchInput').value = ''; loadSnippets(); loadTags(); closeCommandPalette(); } }
-        ];
-    }
-
-    function focusSearchInput() {
-        const searchInput = document.getElementById('searchInput');
-        if (!searchInput) return;
-        searchInput.focus();
-        try { searchInput.select(); } catch (error) {}
-        closeCommandPalette();
-    }
-
-    function renderCommandPaletteItems(query = '') {
-        const normalized = query.trim().toLowerCase();
-        const actions = getActions().filter((item) => {
-            if (!normalized) return true;
-            return item.label.toLowerCase().includes(normalized) || item.hint.toLowerCase().includes(normalized);
-        });
-
-        if (!actions.length) {
-            list.innerHTML = '<li class="command-empty">لا توجد أوامر مطابقة</li>';
-            return;
-        }
-
-        list.innerHTML = actions.map((item, index) => `
-            <li class="command-item ${index === 0 ? 'selected' : ''}" data-action-id="${item.id}">
-                <span class="command-label">${item.label}</span>
-                <span class="command-hint">${item.hint}</span>
-            </li>
-        `).join('');
-
-        list.querySelectorAll('.command-item').forEach((item) => {
-            item.addEventListener('click', () => {
-                const action = getActions().find((entry) => entry.id === item.dataset.actionId);
-                if (action) action.action();
-            });
-        });
-    }
-
-    paletteInput.addEventListener('input', (e) => renderCommandPaletteItems(e.target.value));
-
-    paletteInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const items = Array.from(list.querySelectorAll('.command-item'));
-            const selected = items.find(item => item.classList.contains('selected')) || items[0];
-            if (!selected) return;
-            const action = getActions().find((entry) => entry.id === selected.dataset.actionId);
-            if (action) action.action();
-        }
-
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            const items = Array.from(list.querySelectorAll('.command-item'));
-            if (!items.length) return;
-            let currentIndex = items.findIndex(item => item.classList.contains('selected'));
-            if (currentIndex < 0) currentIndex = 0;
-            if (e.key === 'ArrowDown') currentIndex = (currentIndex + 1) % items.length;
-            if (e.key === 'ArrowUp') currentIndex = (currentIndex - 1 + items.length) % items.length;
-            items.forEach((item, idx) => item.classList.toggle('selected', idx === currentIndex));
-        }
+    commands.forEach(cmd => {
+        const li = document.createElement('li');
+        li.tabIndex = 0;
+        li.className = 'command-item';
+        li.textContent = cmd.title;
+        li.addEventListener('click', cmd.action);
+        list.appendChild(li);
     });
+}
 
-    document.addEventListener('keydown', (e) => {
-        if (!state.paletteOpen) return;
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            closeCommandPalette();
-        }
+function handleCommandPaletteSearch(e) {
+    const q = e.target.value.trim().toLowerCase();
+    const list = document.getElementById('commandPaletteList');
+    Array.from(list.children).forEach(li => {
+        li.style.display = li.textContent.toLowerCase().includes(q) ? '' : 'none';
     });
-
-    document.getElementById('commandPaletteClose').addEventListener('click', closeCommandPalette);
-    document.getElementById('commandPaletteBackdrop').addEventListener('click', closeCommandPalette);
-    renderCommandPaletteItems();
 }
 
-function openCommandPalette() {
-    const palette = document.getElementById('commandPalette');
-    const input = document.getElementById('commandPaletteInput');
-    if (!palette || !input) return;
-    state.paletteOpen = true;
-    palette.classList.remove('hidden');
-    input.value = '';
-    renderCommandPaletteItems('');
-    setTimeout(() => input.focus(), 50);
-}
-
-function closeCommandPalette() {
-    const palette = document.getElementById('commandPalette');
-    const input = document.getElementById('commandPaletteInput');
-    if (!palette || !input) return;
-    state.paletteOpen = false;
-    palette.classList.add('hidden');
-    input.value = '';
-}
-
+// Initialize on DOM ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
