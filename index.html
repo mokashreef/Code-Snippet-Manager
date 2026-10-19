@@ -36,12 +36,20 @@
                     </svg>
                     <h1>Code Snippet Manager</h1>
                 </div>
-                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                <div style="display:flex; gap:12px; align-items:center;">
                     <button class="btn btn-secondary" id="themeToggleBtn" title="تبديل الثيم">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
                             <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         <span id="themeToggleLabel">داكن</span>
+                    </button>
+
+                    <button class="btn btn-secondary" id="shortcutsToggleBtn" title="تفعيل/إيقاف الاختصارات">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M9 18h6M10 14h4M12 10h0" stroke-width="1.7" stroke-linecap="round"/>
+                            <path d="M4 6h16v12H4z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="shortcut-toggle-text">اختصارات: مفعل</span>
                     </button>
 
                     <button class="btn btn-primary" id="addSnippetBtn">
@@ -51,6 +59,7 @@
                         إضافة كود جديد
                     </button>
 
+                    <!-- Export / Import buttons (quick backup & restore) -->
                     <button class="btn btn-secondary" id="exportBtn" title="تصدير السنيبتات (JSON) - Ctrl/Cmd+Shift+E">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -71,6 +80,7 @@
                 </div>
             </div>
             
+            <!-- Search Bar -->
             <div class="search-container">
                 <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
                     <circle cx="9" cy="9" r="6" stroke-width="2"/>
@@ -85,11 +95,15 @@
                 >
                 <span class="search-count" id="searchCount"></span>
             </div>
+
+            <div class="search-hint">اختصارات: Ctrl/Cmd + K · / · Ctrl/Cmd + F</div>
         </div>
     </header>
 
+    <!-- Main Content -->
     <main class="main">
         <div class="container">
+            <!-- Tags Filter Section -->
             <div class="tags-section" id="tagsSection">
                 <div class="tags-header">
                     <h2>الوسوم</h2>
@@ -100,6 +114,7 @@
                 </div>
             </div>
 
+            <!-- Snippets Grid -->
             <div class="snippets-section">
                 <div class="snippets-header">
                     <h2>الأكواد المحفوظة</h2>
@@ -109,6 +124,7 @@
                     <!-- Snippet cards will be rendered here -->
                 </div>
                 
+                <!-- Empty State -->
                 <div class="empty-state" id="emptyState">
                     <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="60" cy="60" r="50" stroke="url(#emptyGradient)" stroke-width="2" opacity="0.2"/>
@@ -132,6 +148,7 @@
         </div>
     </main>
 
+    <!-- Add/Edit Snippet Modal -->
     <div class="modal" id="snippetModal">
         <div class="modal-backdrop" id="modalBackdrop"></div>
         <div class="modal-content">
@@ -225,6 +242,7 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
     <div class="toast" id="toast">
         <div class="toast-content">
             <svg class="toast-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
@@ -234,8 +252,23 @@
         </div>
     </div>
 
+    <!-- Hidden import file input -->
     <input type="file" id="importFileInput" accept=".json,application/json" style="display:none" />
 
+    <!-- Command Palette -->
+    <div id="commandPalette" class="command-palette hidden" aria-hidden="true">
+        <div id="commandPaletteBackdrop" class="command-palette-backdrop"></div>
+        <div class="command-palette-panel" role="dialog" aria-modal="true" aria-label="لوحة الأوامر">
+            <div class="command-palette-header">
+                <strong>أوامر سريعة</strong>
+                <button type="button" id="commandPaletteClose" class="command-close-btn" aria-label="إغلاق">✕</button>
+            </div>
+            <input id="commandPaletteInput" type="text" placeholder="اكتب أمرًا أو ابحث..." />
+            <ul id="commandPaletteList"></ul>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="lib/prism/prism.js"></script>
     <script type="module" src="js/app.js"></script>
 </body>
