@@ -1,0 +1,31 @@
+{
+  "name": "code-snippet-manager",
+  "version": "2.0.0",
+  "description": "Professional code snippet management tool designed for developers to store, organize, search, and retrieve code snippets with syntax highlighting and smart tagging.",
+  "type": "module",
+  "main": "js/app.js",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "serve": "npx -y serve .",
+    "start": "python -m http.server 8000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mokashreef/Code-Snippet-Manager.git"
+  },
+  "keywords": [
+    "code-snippet-manager",
+    "snippets",
+    "prismjs",
+    "syntax-highlighting",
+    "developer-tools",
+    "vanilla-javascript",
+    "localstorage"
+  ],
+  "author": "mohammad abu kashreef <121912865+mokashreef@users.noreply.github.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mokashreef/Code-Snippet-Manager/issues"
+  },
+  "homepage": "https://mokashreef.github.io/Code-Snippet-Manager/"
+}
