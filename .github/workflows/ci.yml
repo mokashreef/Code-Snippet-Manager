@@ -1,0 +1,24 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, 'rebuild/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Run Automated Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Test Suite
+        run: npm test

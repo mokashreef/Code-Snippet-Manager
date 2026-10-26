@@ -1,494 +1,646 @@
+/**
+ * @fileoverview Main Application Controller for Code Snippet Manager.
+ * Orchestrates application lifecycle, event delegation, search/filter pipeline,
+ * modal workflows, import/export operations, and global keyboard shortcuts.
+ *
+ * Architectural Decision:
+ * 1. Single Directional Data Flow: UI actions mutate state, which requests updated data
+ *    from the storage layer and triggers deterministic UI render updates.
+ * 2. Event Delegation: Rather than binding separate event listeners to every generated card
+ *    or tag pill, user actions are caught at parent container boundaries using semantic
+ *    data-* attributes (`data-action`, `data-id`, `data-tag`).
+ * 3. Non-Intrusive Keyboard Shortcuts: Global shortcuts (`Ctrl+K`, `Ctrl+N`, `Escape`, `Ctrl+/`)
+ *    ignore keypresses that originate from inside active input or textarea controls.
+ */
+
 import * as storage from './storage.js';
 import * as ui from './ui.js';
 import * as utils from './utils.js';
 
+/**
+ * Reactive application state store.
+ */
 const state = {
-    currentFilter: '',
-    searchQuery: ''
+    searchQuery: '',
+    currentTag: '',
+    currentLanguage: '',
+    favoritesOnly: false,
+    sortBy: 'updated-desc',
+    pendingImport: null,
+    isFormDirty: false
 };
 
-let codeEditor = null; // CodeMirror instance
-let pendingImport = {
-    raw: null,
-    parsed: null
-};
+/**
+ * Initialize application when DOM is ready.
+ */
+export function init() {
+    // 1. Initialize user theme (defaults to dark mode)
+    const storedTheme = storage.getStoredTheme();
+    ui.applyTheme(storedTheme);
 
-function init() {
-    loadSnippets();
-    loadTags();
-    setupEventListeners();
-    console.log('✅ Code Snippet Manager initialized');
+    // 2. Populate language filter select dropdown
+    populateLanguageFilter();
+
+    // 3. Render initial snippet list, tag cloud, and dashboard metrics
+    refreshView();
+
+    // 4. Attach event listeners
+    setupActionDelegation();
+    setupToolbarListeners();
+    setupFormListeners();
+    setupImportExportListeners();
+    setupKeyboardShortcuts();
+
+    console.info('🚀 Code Snippet Manager 2.0 initialized successfully.');
 }
 
-function loadSnippets() {
-    const snippets = storage.searchSnippets(state.searchQuery, state.currentFilter);
+/**
+ * Refresh snippets grid, tag filters, and dashboard summary metrics.
+ */
+export function refreshView() {
+    const snippets = storage.searchSnippets({
+        query: state.searchQuery,
+        tag: state.currentTag,
+        language: state.currentLanguage,
+        favoritesOnly: state.favoritesOnly,
+        sortBy: state.sortBy
+    });
+
     ui.renderSnippets(snippets);
-    ui.updateSearchCount(snippets.length, state.searchQuery);
-}
+    ui.renderTagFilters(storage.getAllTags(), state.currentTag);
+    ui.renderStats(storage.getStatistics());
 
-function loadTags() {
-    const tags = storage.getAllTags();
-    ui.renderTagFilters(tags, state.currentFilter);
-}
-
-function setupEventListeners() {
-    // Add snippet button
-    document.getElementById('addSnippetBtn').addEventListener('click', () => {
-        ui.openModal();
-        // initialize editor slightly after modal opens
-        setTimeout(() => prepareEditorForModal(), 50);
-    });
-
-    // Close / cancel
-    document.getElementById('closeModalBtn').addEventListener('click', () => {
-        ui.closeModal();
-        clearEditor();
-    });
-    document.getElementById('cancelBtn').addEventListener('click', () => {
-        ui.closeModal();
-        clearEditor();
-    });
-    document.getElementById('modalBackdrop').addEventListener('click', () => {
-        ui.closeModal();
-        clearEditor();
-    });
-
-    // Keyboard ESC
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            ui.closeModal();
-            hideImportPreview();
-            clearEditor();
+    // Update result count display in search bar
+    const searchCountEl = document.getElementById('searchCount');
+    if (searchCountEl) {
+        if (!state.searchQuery && !state.currentTag && !state.currentLanguage && !state.favoritesOnly) {
+            searchCountEl.textContent = '';
+        } else {
+            const count = snippets.length;
+            searchCountEl.textContent = `${count} ${count === 1 ? 'نتيجة' : 'نتائج'}`;
         }
-    });
+    }
+}
 
-    // Form submit
-    document.getElementById('snippetForm').addEventListener('submit', handleFormSubmit);
+/**
+ * Populate language filter options from the centralized language registry.
+ */
+function populateLanguageFilter() {
+    const select = document.getElementById('languageFilterSelect');
+    if (!select) return;
 
-    // Search input with debounce
+    select.innerHTML = '<option value="">كل اللغات</option>';
+    for (const [key, meta] of Object.entries(utils.LANGUAGE_REGISTRY)) {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = meta.name;
+        select.appendChild(option);
+    }
+}
+
+/**
+ * Setup event delegation on cards grid and tags container.
+ * Prevents memory leaks and removes need to re-bind event handlers on re-render.
+ */
+function setupActionDelegation() {
+    const snippetsGrid = document.getElementById('snippetsGrid');
+    if (snippetsGrid) {
+        snippetsGrid.addEventListener('click', handleGridAction);
+    }
+
+    const tagsContainer = document.getElementById('tagsContainer');
+    if (tagsContainer) {
+        tagsContainer.addEventListener('click', (e) => {
+            const tagBtn = e.target.closest('[data-action="filter-tag"]');
+            if (tagBtn) {
+                const tag = tagBtn.dataset.tag;
+                toggleTagFilter(tag);
+            }
+        });
+    }
+
+    const clearFilterBtn = document.getElementById('clearFilterBtn');
+    if (clearFilterBtn) {
+        clearFilterBtn.addEventListener('click', () => {
+            state.currentTag = '';
+            refreshView();
+        });
+    }
+}
+
+/**
+ * Handler for delegated card clicks.
+ *
+ * @param {MouseEvent} e - Click event
+ */
+async function handleGridAction(e) {
+    const actionEl = e.target.closest('[data-action]');
+    if (!actionEl) return;
+
+    const action = actionEl.dataset.action;
+    const snippetId = actionEl.dataset.id;
+    if (!snippetId && action !== 'filter-tag') return;
+
+    switch (action) {
+        case 'view': {
+            const snippet = storage.getSnippet(snippetId);
+            if (snippet) ui.openViewerModal(snippet);
+            break;
+        }
+
+        case 'copy': {
+            const snippet = storage.getSnippet(snippetId);
+            if (!snippet) return;
+            const success = await utils.copyToClipboard(snippet.code);
+            if (success) {
+                ui.showToast('📋 تم نسخ الكود بنجاح إلى الحافظة', 'success');
+            } else {
+                ui.showToast('❌ تعذر نسخ الكود', 'error');
+            }
+            break;
+        }
+
+        case 'toggle-favorite': {
+            const result = storage.toggleFavorite(snippetId);
+            if (result.success) {
+                ui.showToast(
+                    result.isFavorite ? '⭐ تمت الإضافة إلى المفضلة' : 'تمت الإزالة من المفضلة',
+                    'info',
+                    2000
+                );
+                refreshView();
+            }
+            break;
+        }
+
+        case 'edit': {
+            const snippet = storage.getSnippet(snippetId);
+            if (snippet) {
+                state.isFormDirty = false;
+                ui.openEditModal(snippet);
+            }
+            break;
+        }
+
+        case 'delete': {
+            const snippet = storage.getSnippet(snippetId);
+            if (!snippet) return;
+            const confirmed = ui.confirmDialog(`هل أنت متأكد من حذف الكود "${snippet.title}"؟`);
+            if (confirmed) {
+                const deleted = storage.deleteSnippet(snippetId);
+                if (deleted) {
+                    ui.showToast('🗑️ تم حذف الكود بنجاح', 'success');
+                    refreshView();
+                } else {
+                    ui.showToast('❌ فشل حذف الكود', 'error');
+                }
+            }
+            break;
+        }
+
+        case 'filter-tag': {
+            const tag = actionEl.dataset.tag;
+            toggleTagFilter(tag);
+            break;
+        }
+    }
+}
+
+/**
+ * Toggle active tag filter on/off.
+ *
+ * @param {string} tag - Tag name
+ */
+function toggleTagFilter(tag) {
+    if (state.currentTag.toLowerCase() === (tag || '').toLowerCase()) {
+        state.currentTag = '';
+    } else {
+        state.currentTag = tag;
+    }
+    refreshView();
+}
+
+/**
+ * Setup toolbar controls (Search, Favorites Filter, Language Filter, Sort, Theme Toggle).
+ */
+function setupToolbarListeners() {
+    // 1. Add snippet button
+    const addSnippetBtn = document.getElementById('addSnippetBtn');
+    if (addSnippetBtn) {
+        addSnippetBtn.addEventListener('click', () => {
+            state.isFormDirty = false;
+            ui.openEditModal(null);
+        });
+    }
+
+    // 2. Debounced search input
     const searchInput = document.getElementById('searchInput');
-    searchInput.addEventListener('input', utils.debounce((e) => {
-        state.searchQuery = e.target.value;
-        loadSnippets();
-    }, 300));
+    if (searchInput) {
+        searchInput.addEventListener('input', utils.debounce((e) => {
+            state.searchQuery = e.target.value;
+            refreshView();
+        }, 250));
+    }
 
-    // Clear filter
-    document.getElementById('clearFilterBtn').addEventListener('click', () => {
-        state.currentFilter = '';
-        loadSnippets();
-        loadTags();
-    });
+    // 3. Favorites only filter button
+    const filterFavoritesBtn = document.getElementById('filterFavoritesBtn');
+    if (filterFavoritesBtn) {
+        filterFavoritesBtn.addEventListener('click', () => {
+            state.favoritesOnly = !state.favoritesOnly;
+            filterFavoritesBtn.classList.toggle('active', state.favoritesOnly);
+            filterFavoritesBtn.setAttribute('aria-pressed', String(state.favoritesOnly));
+            refreshView();
+        });
+    }
 
-    // Auto-resize textarea (hidden when using editor) — keep for fallback
-    const textarea = document.getElementById('snippetCode');
-    textarea.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = this.scrollHeight + 'px';
-    });
+    // 4. Language filter select
+    const languageSelect = document.getElementById('languageFilterSelect');
+    if (languageSelect) {
+        languageSelect.addEventListener('change', (e) => {
+            state.currentLanguage = e.target.value;
+            refreshView();
+        });
+    }
 
-    // Language change -> update editor mode
-    const langSelect = document.getElementById('snippetLanguage');
-    langSelect.addEventListener('change', (e) => {
-        setEditorModeForLanguage(e.target.value);
-    });
+    // 5. Sort by select
+    const sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+            state.sortBy = e.target.value;
+            refreshView();
+        });
+    }
 
-    // Export / Import / Restore
-    document.getElementById('exportBtn').addEventListener('click', handleExport);
-    document.getElementById('importBtn').addEventListener('click', () => {
-        document.getElementById('importFileInput').value = null;
-        document.getElementById('importFileInput').click();
-    });
-    document.getElementById('restoreBackupBtn').addEventListener('click', handleRestoreBackup);
+    // 6. Theme toggle button
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', () => {
+            const currentTheme = storage.getStoredTheme();
+            const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            storage.setStoredTheme(nextTheme);
+            ui.applyTheme(nextTheme);
+            ui.showToast(
+                nextTheme === 'dark' ? '🌙 تم تفعيل الوضع الداكن' : '☀️ تم تفعيل الوضع الفاتح',
+                'info',
+                2000
+            );
+        });
+    }
 
-    // File input change
-    document.getElementById('importFileInput').addEventListener('change', handleImportFileInput);
-
-    // Import preview modal buttons
-    document.getElementById('importPreviewClose').addEventListener('click', hideImportPreview);
-    document.getElementById('cancelImportPreviewBtn').addEventListener('click', hideImportPreview);
-    document.getElementById('importPreviewMergeBtn').addEventListener('click', () => applyImport({ merge: true }));
-    document.getElementById('importPreviewReplaceBtn').addEventListener('click', () => applyImport({ merge: false }));
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-        const meta = e.ctrlKey || e.metaKey;
-        if (meta && e.shiftKey && e.key.toLowerCase() === 'e') {
-            e.preventDefault();
-            handleExport();
-        }
-
-        // Command palette (Ctrl/Cmd+K)
-        if (meta && !e.shiftKey && e.key.toLowerCase() === 'k') {
-            e.preventDefault();
-            toggleCommandPalette();
-        }
-
-        // Quick find (/) focuses search
-        if (!meta && e.key === '/') {
-            const active = document.activeElement;
-            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
-            e.preventDefault();
-            document.getElementById('searchInput').focus();
-        }
-    });
-
-    // Command palette close
-    document.getElementById('commandPaletteClose').addEventListener('click', hideCommandPalette);
-    document.getElementById('commandPaletteBackdrop').addEventListener('click', hideCommandPalette);
-    document.getElementById('commandPaletteInput').addEventListener('input', utils.debounce(handleCommandPaletteSearch, 150));
+    // 7. Shortcuts reference button
+    const shortcutsBtn = document.getElementById('shortcutsBtn');
+    if (shortcutsBtn) {
+        shortcutsBtn.addEventListener('click', ui.openShortcutsModal);
+    }
 }
 
+/**
+ * Setup snippet creation & edit form logic.
+ */
+function setupFormListeners() {
+    const form = document.getElementById('snippetForm');
+    const codeTextarea = document.getElementById('snippetCode');
+    const codeLengthCount = document.getElementById('codeLengthCount');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+
+    // Track dirty state to guard against accidental data loss
+    if (form) {
+        form.addEventListener('input', () => {
+            state.isFormDirty = true;
+        });
+
+        form.addEventListener('submit', handleFormSubmit);
+    }
+
+    // Tab key handling inside code textarea: inserts 2 spaces instead of moving focus
+    if (codeTextarea) {
+        codeTextarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = codeTextarea.selectionStart;
+                const end = codeTextarea.selectionEnd;
+                const value = codeTextarea.value;
+
+                codeTextarea.value = value.substring(0, start) + '  ' + value.substring(end);
+                codeTextarea.selectionStart = codeTextarea.selectionEnd = start + 2;
+                state.isFormDirty = true;
+            }
+        });
+
+        // Real-time character counter
+        codeTextarea.addEventListener('input', () => {
+            if (codeLengthCount) {
+                codeLengthCount.textContent = `${codeTextarea.value.length} حرف`;
+            }
+        });
+    }
+
+    // Guarded modal dismiss function
+    const safelyCloseEditModal = () => {
+        if (state.isFormDirty) {
+            const discard = ui.confirmDialog('لديك تعديلات غير محفوظة. هل تريد الخروج بدون حفظ؟');
+            if (!discard) return;
+        }
+        state.isFormDirty = false;
+        ui.closeEditModal();
+    };
+
+    if (cancelBtn) cancelBtn.addEventListener('click', safelyCloseEditModal);
+    if (closeModalBtn) closeModalBtn.addEventListener('click', safelyCloseEditModal);
+    if (modalBackdrop) modalBackdrop.addEventListener('click', safelyCloseEditModal);
+
+    // Viewer modal close buttons
+    const closeViewerBtn = document.getElementById('closeViewerBtn');
+    const viewerBackdrop = document.getElementById('viewerBackdrop');
+    if (closeViewerBtn) closeViewerBtn.addEventListener('click', ui.closeViewerModal);
+    if (viewerBackdrop) viewerBackdrop.addEventListener('click', ui.closeViewerModal);
+
+    // Viewer modal actions (Copy and Edit)
+    const viewerCopyBtn = document.getElementById('viewerCopyBtn');
+    if (viewerCopyBtn) {
+        viewerCopyBtn.addEventListener('click', async () => {
+            const id = viewerCopyBtn.dataset.id;
+            const snippet = storage.getSnippet(id);
+            if (snippet) {
+                const ok = await utils.copyToClipboard(snippet.code);
+                if (ok) ui.showToast('📋 تم نسخ الكود كاملاً بنجاح', 'success');
+            }
+        });
+    }
+
+    const viewerEditBtn = document.getElementById('viewerEditBtn');
+    if (viewerEditBtn) {
+        viewerEditBtn.addEventListener('click', () => {
+            const id = viewerEditBtn.dataset.id;
+            const snippet = storage.getSnippet(id);
+            ui.closeViewerModal();
+            if (snippet) {
+                state.isFormDirty = false;
+                ui.openEditModal(snippet);
+            }
+        });
+    }
+
+    // Shortcuts modal close
+    const closeShortcutsBtn = document.getElementById('closeShortcutsBtn');
+    const shortcutsBackdrop = document.getElementById('shortcutsBackdrop');
+    if (closeShortcutsBtn) closeShortcutsBtn.addEventListener('click', ui.closeShortcutsModal);
+    if (shortcutsBackdrop) shortcutsBackdrop.addEventListener('click', ui.closeShortcutsModal);
+}
+
+/**
+ * Handle form submit for adding or updating a snippet.
+ *
+ * @param {SubmitEvent} e - Form submit event
+ */
 function handleFormSubmit(e) {
     e.preventDefault();
 
-    // Get form values
-    const id = document.getElementById('snippetId').value || utils.generateId();
+    const idInput = document.getElementById('snippetId').value;
     const title = document.getElementById('snippetTitle').value.trim();
     const language = document.getElementById('snippetLanguage').value;
+    const code = document.getElementById('snippetCode').value.trim();
     const description = document.getElementById('snippetDescription').value.trim();
-    const tagsString = document.getElementById('snippetTags').value;
-    const tags = utils.parseTags(tagsString);
+    const tagsRaw = document.getElementById('snippetTags').value;
 
-    // Get code from editor (fallback to textarea)
-    const code = (codeEditor && typeof codeEditor.getValue === 'function') ? codeEditor.getValue() : document.getElementById('snippetCode').value.trim();
+    const isEdit = Boolean(idInput);
+    const existingSnippet = isEdit ? storage.getSnippet(idInput) : null;
 
-    const snippet = {
-        id,
+    const payload = {
+        id: idInput || utils.generateId(),
         title,
         language,
         code,
         description,
-        tags
+        tags: utils.parseTags(tagsRaw),
+        isFavorite: existingSnippet ? existingSnippet.isFavorite : false
     };
 
-    const success = storage.saveSnippet(snippet);
+    const result = storage.saveSnippet(payload);
 
-    if (success) {
-        ui.closeModal();
-        clearEditor();
-        loadSnippets();
-        loadTags();
-
-        const isEdit = document.getElementById('snippetId').value !== '';
+    if (result.success) {
+        state.isFormDirty = false;
+        ui.closeEditModal();
+        refreshView();
         ui.showToast(
-            isEdit ? '✅ تم تحديث الكود بنجاح' : '✅ تم إضافة الكود بنجاح',
+            isEdit ? '✅ تم تحديث الكود البرمجي بنجاح' : '🎉 تم حفظ الكود البرمجي الجديد بنجاح',
             'success'
         );
     } else {
-        ui.showToast('❌ حدث خطأ أثناء الحفظ', 'error');
+        const errorMsg = (result.errors && result.errors.length)
+            ? result.errors.join(' ')
+            : 'حدث خطأ أثناء حفظ الكود.';
+        ui.showToast(`❌ ${errorMsg}`, 'error');
     }
 }
 
-// Open editor and populate when modal opens
-function prepareEditorForModal(initialCode = '') {
-    // Ensure CodeMirror is available
-    if (typeof CodeMirror === 'undefined') return;
+/**
+ * Setup JSON Export, File Import, and Backup/Restore functionality.
+ */
+function setupImportExportListeners() {
+    // 1. Export snippets as JSON file
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            const snippets = storage.getAllSnippets();
+            if (snippets.length === 0) {
+                ui.showToast('ℹ️ لا توجد أكواد لتصديرها حالياً', 'info');
+                return;
+            }
 
-    const editorContainer = document.getElementById('snippetCodeEditor');
-    if (!editorContainer) return;
+            const jsonString = storage.exportSnippets();
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const filename = `code-snippets-backup-${dateStr}.json`;
 
-    if (!codeEditor) {
-        codeEditor = CodeMirror(editorContainer, {
-            value: initialCode || document.getElementById('snippetCode').value || '',
-            mode: 'javascript',
-            theme: 'material-darker',
-            lineNumbers: true,
-            indentUnit: 2,
-            tabSize: 2,
-            autofocus: true,
-            viewportMargin: Infinity
+            utils.downloadJsonFile(jsonString, filename);
+            ui.showToast(`⬇️ تم تصدير ${snippets.length} كود بنجاح`, 'success');
+        });
+    }
+
+    // 2. Import button triggers hidden file input
+    const importBtn = document.getElementById('importBtn');
+    const importFileInput = document.getElementById('importFileInput');
+    if (importBtn && importFileInput) {
+        importBtn.addEventListener('click', () => {
+            importFileInput.value = ''; // Reset file input
+            importFileInput.click();
         });
 
-        // Sync editor changes back to hidden textarea if needed
-        codeEditor.on('change', () => {
-            const textarea = document.getElementById('snippetCode');
-            if (textarea) textarea.value = codeEditor.getValue();
+        importFileInput.addEventListener('change', handleImportFileSelect);
+    }
+
+    // 3. Confirm import button inside preview modal
+    const confirmImportBtn = document.getElementById('confirmImportBtn');
+    if (confirmImportBtn) {
+        confirmImportBtn.addEventListener('click', executeImport);
+    }
+
+    const cancelImportBtn = document.getElementById('cancelImportBtn');
+    const closeImportModalBtn = document.getElementById('closeImportModalBtn');
+    const importBackdrop = document.getElementById('importBackdrop');
+
+    if (cancelImportBtn) cancelImportBtn.addEventListener('click', ui.closeImportModal);
+    if (closeImportModalBtn) closeImportModalBtn.addEventListener('click', ui.closeImportModal);
+    if (importBackdrop) importBackdrop.addEventListener('click', ui.closeImportModal);
+
+    // 4. Restore backup button
+    const restoreBackupBtn = document.getElementById('restoreBackupBtn');
+    if (restoreBackupBtn) {
+        restoreBackupBtn.addEventListener('click', () => {
+            const backupInfo = storage.getBackupInfo();
+            if (!backupInfo.exists) {
+                ui.showToast('ℹ️ لا توجد نسخة احتياطية محفوظة للاستعادة', 'info');
+                return;
+            }
+
+            const formattedDate = utils.formatDate(backupInfo.createdAt);
+            const confirmed = ui.confirmDialog(
+                `هل ترغب باستعادة النسخة الاحتياطية المحفوظة (${formattedDate}) وتحتوي على ${backupInfo.count} كود؟`
+            );
+
+            if (confirmed) {
+                const restored = storage.restoreBackup();
+                if (restored) {
+                    refreshView();
+                    ui.showToast('✅ تمت استعادة النسخة الاحتياطية بنجاح', 'success');
+                } else {
+                    ui.showToast('❌ فشلت عملية الاستعادة', 'error');
+                }
+            }
         });
-    } else {
-        // set existing value if provided
-        if (initialCode) codeEditor.setValue(initialCode);
     }
-
-    // set mode according to selected language
-    const lang = document.getElementById('snippetLanguage').value;
-    setEditorModeForLanguage(lang);
 }
 
-function clearEditor() {
-    if (!codeEditor) return;
-    codeEditor.setValue('');
-    // optionally destroy instance? keep it to reuse
-}
-
-function setEditorModeForLanguage(lang) {
-    if (!codeEditor || typeof codeEditor.setOption !== 'function') return;
-
-    const map = {
-        javascript: 'javascript',
-        typescript: 'javascript',
-        html: 'htmlmixed',
-        css: 'css',
-        python: 'python',
-        php: 'php',
-        sql: 'sql',
-        json: { name: 'javascript', json: true },
-        markdown: 'markdown',
-        bash: 'shell'
-    };
-
-    const mode = map[lang] || 'javascript';
-    codeEditor.setOption('mode', mode);
-}
-
-// Override global functions that previously existed so we can attach editor logic
-window.editSnippet = function(id) {
-    const snippet = storage.getSnippet(id);
-    if (snippet) {
-        // fill form fields then open modal
-        document.getElementById('snippetId').value = snippet.id || '';
-        document.getElementById('snippetTitle').value = snippet.title || '';
-        document.getElementById('snippetLanguage').value = snippet.language || '';
-        document.getElementById('snippetDescription').value = snippet.description || '';
-        document.getElementById('snippetTags').value = (snippet.tags || []).join(', ');
-
-        ui.openModal(snippet);
-
-        // initialize editor with snippet code after modal is visible
-        setTimeout(() => prepareEditorForModal(snippet.code || ''), 60);
-    }
-};
-
-window.deleteSnippet = function(id) {
-    const snippet = storage.getSnippet(id);
-    if (!snippet) return;
-
-    const confirmed = ui.confirm(`هل أنت متأكد من حذف الكود "${snippet.title}"؟`);
-
-    if (confirmed) {
-        const success = storage.deleteSnippet(id);
-
-        if (success) {
-            loadSnippets();
-            loadTags();
-            ui.showToast('🗑️ تم حذف الكود', 'success');
-        } else {
-            ui.showToast('❌ حدث خطأ أثناء الحذف', 'error');
-        }
-    }
-};
-
-window.copySnippet = async function(id) {
-    const snippet = storage.getSnippet(id);
-    if (!snippet) return;
-
-    const success = await utils.copyToClipboard(snippet.code);
-
-    if (success) {
-        ui.showToast('📋 تم نسخ الكود بنجاح', 'success');
-    } else {
-        ui.showToast('❌ فشل النسخ. حاول مرة أخرى', 'error');
-    }
-};
-
-window.filterByTag = function(tag) {
-    if (state.currentFilter === tag) {
-        state.currentFilter = '';
-    } else {
-        state.currentFilter = tag;
-    }
-
-    state.searchQuery = '';
-    document.getElementById('searchInput').value = '';
-
-    loadSnippets();
-    loadTags();
-};
-
-// Export handler (download JSON file)
-function handleExport() {
-    const json = storage.exportSnippets();
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const now = new Date();
-    const fname = `snippets_${now.toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
-    a.href = url;
-    a.download = fname;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    ui.showToast('⬇️ تم تصدير السنيبتات', 'success');
-}
-
-// Import flow
-function handleImportFileInput(e) {
-    const file = e.target.files && e.target.files[0];
+/**
+ * Handle file selection for snippet import.
+ * Reads file asynchronously, validates structure, and presents preview modal.
+ *
+ * @param {Event} e - Input change event
+ */
+function handleImportFileSelect(e) {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
-        const raw = ev.target.result;
-        try {
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) throw new Error('تنسيق غير صالح: يجب أن يكون مصفوفة من السنيبتات');
+    reader.onload = (event) => {
+        const fileContent = event.target?.result;
+        if (typeof fileContent !== 'string') return;
 
-            pendingImport.raw = raw;
-            pendingImport.parsed = parsed;
-            showImportPreview(parsed);
-        } catch (err) {
-            ui.showToast('❌ ملف غير صالح: ' + err.message, 'error');
-        }
+        const validation = storage.validateImportData(fileContent);
+        state.pendingImport = {
+            rawContent: fileContent,
+            validation
+        };
+
+        ui.openImportModal(validation);
     };
+
+    reader.onerror = () => {
+        ui.showToast('❌ تعذر قراءة الملف المحدد.', 'error');
+    };
+
     reader.readAsText(file, 'utf-8');
 }
 
-function showImportPreview(parsed) {
-    // compute summary
-    const existing = storage.getAllSnippets();
-    const existingIds = new Set(existing.map(s => s.id));
-    let wouldAdd = 0;
-    let wouldUpdate = 0;
-    const items = [];
+/**
+ * Execute validated import according to user's selected resolution mode ('merge' or 'replace').
+ */
+function executeImport() {
+    if (!state.pendingImport || !state.pendingImport.rawContent) return;
 
-    parsed.forEach((item, idx) => {
-        const title = item.title || item.id || `سنيبت ${idx + 1}`;
-        if (item.id && existingIds.has(item.id)) {
-            wouldUpdate++;
-            items.push({ title, type: 'update' });
-        } else {
-            wouldAdd++;
-            items.push({ title, type: 'add' });
-        }
-    });
+    const modeInput = document.querySelector('input[name="importMode"]:checked');
+    const mode = (modeInput?.value === 'replace') ? 'replace' : 'merge';
 
-    const summaryEl = document.getElementById('importPreviewSummary');
-    summaryEl.innerHTML = `<p>سيتم إضافة <strong>${wouldAdd}</strong> سنيبت، وتحديث <strong>${wouldUpdate}</strong> سنيبت (إن وجدت مطابقات بالـ id).</p>`;
+    const result = storage.importSnippets(state.pendingImport.rawContent, { mode });
 
-    const listEl = document.getElementById('importPreviewList');
-    listEl.innerHTML = '';
-    const maxShow = 50;
-    items.slice(0, maxShow).forEach(it => {
-        const div = document.createElement('div');
-        div.className = 'import-preview-item';
-        div.textContent = `${it.type === 'add' ? 'إضافة' : 'تحديث'} — ${it.title}`;
-        listEl.appendChild(div);
-    });
-    if (items.length > maxShow) {
-        const more = document.createElement('div');
-        more.className = 'import-preview-more';
-        more.textContent = `و ${items.length - maxShow} المزيد...`;
-        listEl.appendChild(more);
+    if (result.success) {
+        ui.closeImportModal();
+        state.pendingImport = null;
+        refreshView();
+
+        const msg = mode === 'replace'
+            ? `✅ تم استبدال الأكواد بنجاح (${result.added} كود). تم حفظ نسخة احتياطية تلقائياً.`
+            : `✅ اكتمل الدمج بنجاح: تم إضافة ${result.added} وتحديث ${result.updated} كود.`;
+
+        ui.showToast(msg, 'success', 5000);
+    } else {
+        ui.showToast(`❌ فشل الاستيراد: ${result.error || 'خطأ غير معروف'}`, 'error');
     }
-
-    // show modal
-    const modal = document.getElementById('importPreviewModal');
-    if (modal) modal.style.display = 'block';
 }
 
-function hideImportPreview() {
-    const modal = document.getElementById('importPreviewModal');
-    if (modal) modal.style.display = 'none';
-    pendingImport.raw = null;
-    pendingImport.parsed = null;
-}
+/**
+ * Setup global productivity keyboard shortcuts.
+ */
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        const isEditingField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 
-async function applyImport(options = { merge: true }) {
-    if (!pendingImport.raw) return;
+        // Escape: Closes any active modal
+        if (e.key === 'Escape') {
+            ui.closeViewerModal();
+            ui.closeShortcutsModal();
+            ui.closeImportModal();
 
-    // create backup before replace
-    if (!options.merge) {
-        const ok = storage.backupCurrent();
-        if (!ok) {
-            ui.showToast('❌ فشل إنشاء النسخة الاحتياطية', 'error');
+            // Edit modal check with dirty state
+            const editModal = document.getElementById('snippetModal');
+            if (editModal?.classList.contains('active')) {
+                if (state.isFormDirty) {
+                    const discard = ui.confirmDialog('لديك تعديلات غير محفوظة. هل تريد الخروج بدون حفظ؟');
+                    if (discard) {
+                        state.isFormDirty = false;
+                        ui.closeEditModal();
+                    }
+                } else {
+                    ui.closeEditModal();
+                }
+            }
             return;
         }
-    }
 
-    const result = storage.importSnippets(pendingImport.raw, { merge: options.merge });
+        // Quick Search: Ctrl+K or '/' (when not typing in an input)
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+            return;
+        }
 
-    if (result && result.success) {
-        hideImportPreview();
-        loadSnippets();
-        loadTags();
-        ui.showToast(`✅ اكتملت العملية — تمت الإضافة: ${result.added}، التحديث: ${result.updated}`, 'success');
-    } else {
-        ui.showToast('❌ فشل الاستيراد: ' + (result.error || 'خطأ غير معروف'), 'error');
-    }
-}
+        if (e.key === '/' && !isEditingField) {
+            e.preventDefault();
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+                searchInput.select();
+            }
+            return;
+        }
 
-function handleRestoreBackup() {
-    const backup = storage.getBackup();
-    if (!backup) {
-        ui.showToast('ℹ️ لا توجد نسخة احتياطية محفوظة', 'warning');
-        return;
-    }
+        // New Snippet: Ctrl+N (or Alt+N)
+        if ((e.altKey && e.key.toLowerCase() === 'n') || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
+            e.preventDefault();
+            state.isFormDirty = false;
+            ui.openEditModal(null);
+            return;
+        }
 
-    const confirmed = ui.confirm(`آخر نسخة احتياطية: ${backup.createdAt}. هل تريد الاستعادة؟`);
-    if (!confirmed) return;
-
-    const ok = storage.restoreBackup();
-    if (ok) {
-        loadSnippets();
-        loadTags();
-        ui.showToast('✅ تم استعادة النسخة الاحتياطية', 'success');
-    } else {
-        ui.showToast('❌ فشل استعادة النسخة', 'error');
-    }
-}
-
-// Simple command palette (search commands)
-function toggleCommandPalette() {
-    const el = document.getElementById('commandPalette');
-    if (!el) return;
-    if (el.classList.contains('hidden')) {
-        el.classList.remove('hidden');
-        el.setAttribute('aria-hidden', 'false');
-        document.getElementById('commandPaletteInput').focus();
-        populateCommandPalette();
-    } else {
-        hideCommandPalette();
-    }
-}
-
-function hideCommandPalette() {
-    const el = document.getElementById('commandPalette');
-    if (!el) return;
-    el.classList.add('hidden');
-    el.setAttribute('aria-hidden', 'true');
-}
-
-function populateCommandPalette() {
-    const list = document.getElementById('commandPaletteList');
-    list.innerHTML = '';
-    const commands = [
-        { id: 'add', title: 'أضف كود جديد', action: () => { ui.openModal(); setTimeout(()=>prepareEditorForModal(),50); hideCommandPalette(); } },
-        { id: 'export', title: 'تصدير السنيبتات', action: () => { handleExport(); hideCommandPalette(); } },
-        { id: 'import', title: 'استيراد سنيبتات', action: () => { document.getElementById('importFileInput').click(); hideCommandPalette(); } },
-        { id: 'restore', title: 'استعادة آخر نسخة احتياطية', action: () => { handleRestoreBackup(); hideCommandPalette(); } }
-    ];
-
-    commands.forEach(cmd => {
-        const li = document.createElement('li');
-        li.tabIndex = 0;
-        li.className = 'command-item';
-        li.textContent = cmd.title;
-        li.addEventListener('click', cmd.action);
-        list.appendChild(li);
+        // Show Shortcuts Cheat Sheet: Ctrl + /
+        if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+            e.preventDefault();
+            ui.openShortcutsModal();
+        }
     });
 }
 
-function handleCommandPaletteSearch(e) {
-    const q = e.target.value.trim().toLowerCase();
-    const list = document.getElementById('commandPaletteList');
-    Array.from(list.children).forEach(li => {
-        li.style.display = li.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-}
-
-// Initialize on DOM ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
+// Bootstrap application once DOM tree is ready
+if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 }

@@ -1,276 +1,495 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Code Snippet Manager - أداة احترافية لإدارة وتخزين مقاطع الأكواد البرمجية">
+    <meta name="description" content="Code Snippet Manager - أداة احترافية لإدارة وتخزين مقاطع الأكواد البرمجية والبحث فيها وتنظيمها بالوسوم والمفضلة.">
+    <meta name="theme-color" content="#0a0a0f">
     <title>Code Snippet Manager | مدير الأكواد البرمجية</title>
-
-    <!-- Prism.js for Code Highlighting -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M9 22L2 16L9 10M23 10L30 16L23 22M19 6L13 26' stroke='%2300d4ff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    
+    <!-- Prism.js for Code Syntax Highlighting -->
     <link rel="stylesheet" href="lib/prism/prism.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
-
-    <!-- Main Stylesheet -->
+    
+    <!-- Main Application Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
-
-    <!-- Google Fonts -->
+    
+    <!-- Google Fonts: Cairo for Arabic UI, Fira Code for Code Presentation -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="header">
+    <!-- Main Application Header -->
+    <header class="header" role="banner">
         <div class="container">
-            <div class="header-content">
+            <div class="header-top">
                 <div class="logo">
-                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 22L2 16L9 10" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M23 10L30 16L23 22" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M19 6L13 26" stroke="url(#gradient)" stroke-width="2.5" stroke-linecap="round"/>
+                    <svg class="logo-icon" width="36" height="36" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M9 22L2 16L9 10" stroke="url(#logoGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M23 10L30 16L23 22" stroke="url(#logoGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M19 6L13 26" stroke="url(#logoGradient)" stroke-width="2.5" stroke-linecap="round"/>
                         <defs>
-                            <linearGradient id="gradient" x1="2" y1="16" x2="30" y2="16">
+                            <linearGradient id="logoGradient" x1="2" y1="16" x2="30" y2="16" gradientUnits="userSpaceOnUse">
                                 <stop offset="0%" stop-color="#00d4ff"/>
                                 <stop offset="100%" stop-color="#9d4edd"/>
                             </linearGradient>
                         </defs>
                     </svg>
-                    <h1>Code Snippet Manager</h1>
+                    <div class="logo-text">
+                        <h1>Code Snippet Manager</h1>
+                        <span class="logo-subtitle">مدير الأكواد البرمجية v2.0</span>
+                    </div>
                 </div>
 
-                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                    <button class="btn btn-secondary" id="themeToggleBtn" title="تبديل الثيم">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79Z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <!-- Primary Toolbar Actions -->
+                <div class="header-actions">
+                    <button type="button" class="btn btn-primary" id="addSnippetBtn" title="إضافة كود جديد (Alt+N)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
-                        <span id="themeToggleLabel">داكن</span>
+                        <span>إضافة كود جديد</span>
                     </button>
 
-                    <button class="btn btn-secondary" id="shortcutsToggleBtn" title="تفعيل/إيقاف الاختصارات">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M9 18h6M10 14h4M12 10h0" stroke-width="1.7" stroke-linecap="round"/>
-                            <path d="M4 6h16v12H4z" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                    <button type="button" class="btn btn-secondary" id="exportBtn" title="تصدير جميع الأكواد كملف JSON">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
-                        <span class="shortcut-toggle-text">اختصارات: مفعل</span>
+                        <span>تصدير</span>
                     </button>
 
-                    <button class="btn btn-primary" id="addSnippetBtn">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                            <path d="M10 4V16M4 10H16" stroke-width="2" stroke-linecap="round"/>
+                    <button type="button" class="btn btn-secondary" id="importBtn" title="استيراد أكواد من ملف JSON">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
                         </svg>
-                        إضافة كود جديد
+                        <span>استيراد</span>
+                    </button>
+                    <input type="file" id="importFileInput" accept=".json,application/json" style="display: none;" aria-hidden="true">
+
+                    <button type="button" class="btn btn-secondary" id="restoreBackupBtn" title="استعادة آخر نسخة احتياطية محفوظة">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                        </svg>
+                        <span>استعادة نسخة</span>
                     </button>
 
-                    <button class="btn btn-secondary" id="restoreBackupBtn" title="استعادة آخر نسخة احتياطية">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M3 12a9 9 0 1 0 3-6.7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M3 4v5h5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <button type="button" class="btn-icon" id="shortcutsBtn" title="اختصارات لوحة المفاتيح (Ctrl+/)" aria-label="اختصارات لوحة المفاتيح">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                            <line x1="6" y1="8" x2="6.01" y2="8"></line>
+                            <line x1="10" y1="8" x2="10.01" y2="8"></line>
+                            <line x1="14" y1="8" x2="14.01" y2="8"></line>
+                            <line x1="18" y1="8" x2="18.01" y2="8"></line>
+                            <line x1="6" y1="12" x2="6.01" y2="12"></line>
+                            <line x1="18" y1="12" x2="18.01" y2="12"></line>
+                            <line x1="8" y1="16" x2="16" y2="16"></line>
                         </svg>
-                        استعادة نسخة
                     </button>
 
-                    <button class="btn btn-secondary" id="exportBtn" title="تصدير السنيبتات (JSON) - Ctrl/Cmd+Shift+E">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            <polyline points="7 10 12 5 17 10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            <line x1="12" y1="5" x2="12" y2="15" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <button type="button" class="btn-icon" id="themeToggleBtn" title="التبديل بين الوضع الداكن والفاتح" aria-label="تبديل الوضع">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="23"></line>
                         </svg>
-                        تصدير
-                    </button>
-
-                    <button class="btn btn-secondary" id="importBtn" title="استيراد السنيبتات (JSON)">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            <polyline points="7 10 12 15 17 10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            <line x1="12" y1="15" x2="12" y2="5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        استيراد
                     </button>
                 </div>
             </div>
 
-            <div class="search-container">
-                <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                    <circle cx="9" cy="9" r="6" stroke-width="2"/>
-                    <path d="M14 14L18 18" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    class="search-input" 
-                    placeholder="ابحث في الأكواد، العناوين، أو الوسوم..."
-                    autocomplete="off"
-                >
-                <span class="search-count" id="searchCount"></span>
+            <!-- Dashboard Summary Metrics -->
+            <div class="stats-summary" id="statsSummary">
+                <div class="stat-item">
+                    <span class="stat-label">إجمالي الأكواد:</span>
+                    <strong class="stat-value" id="statTotalSnippets">0</strong>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">المفضلة:</span>
+                    <strong class="stat-value" id="statFavorites">0</strong>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">الوسوم:</span>
+                    <strong class="stat-value" id="statTags">0</strong>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">اللغات:</span>
+                    <strong class="stat-value" id="statLanguages">0</strong>
+                </div>
             </div>
 
-            <div class="search-hint">اختصارات: Ctrl/Cmd + K · / · Ctrl/Cmd + F</div>
+            <!-- Search and Filter Bar -->
+            <div class="search-filter-wrapper">
+                <div class="search-container">
+                    <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input 
+                        type="search" 
+                        id="searchInput" 
+                        class="search-input" 
+                        placeholder="ابحث في الأكواد، العناوين، أو الوسوم... (Ctrl + K أو /)"
+                        autocomplete="off"
+                        spellcheck="false"
+                        aria-label="البحث في الأكواد البرمجية"
+                    >
+                    <span class="search-count" id="searchCount" aria-live="polite"></span>
+                </div>
+
+                <div class="filter-controls">
+                    <button type="button" class="btn-filter" id="filterFavoritesBtn" title="عرض الأكواد المفضلة فقط" aria-pressed="false">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                        </svg>
+                        <span>المفضلة فقط</span>
+                    </button>
+
+                    <div class="select-wrapper">
+                        <label for="languageFilterSelect" class="sr-only">تصفية حسب اللغة</label>
+                        <select id="languageFilterSelect" class="filter-select" aria-label="تصفية حسب لغة البرمجة">
+                            <option value="">كل اللغات</option>
+                        </select>
+                    </div>
+
+                    <div class="select-wrapper">
+                        <label for="sortSelect" class="sr-only">ترتيب الأكواد</label>
+                        <select id="sortSelect" class="filter-select" aria-label="ترتيب النتائج">
+                            <option value="updated-desc">الأحدث تعديلاً</option>
+                            <option value="updated-asc">الأقدم تعديلاً</option>
+                            <option value="created-desc">الأحدث إنشاءً</option>
+                            <option value="created-asc">الأقدم إنشاءً</option>
+                            <option value="title-asc">العنوان (أ - ي)</option>
+                            <option value="title-desc">العنوان (ي - أ)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
-    <main class="main">
+    <!-- Main Content Area -->
+    <main class="main" role="main">
         <div class="container">
-            <div class="tags-section" id="tagsSection">
+            <!-- Tags Filter Section -->
+            <section class="tags-section" id="tagsSection" aria-label="تصنيف حسب الوسوم">
                 <div class="tags-header">
-                    <h2>الوسوم</h2>
-                    <button class="btn-text" id="clearFilterBtn" style="display: none;">مسح الفلتر</button>
-                </div>
-                <div class="tags-container" id="tagsContainer"></div>
-            </div>
-
-            <div class="snippets-section">
-                <div class="snippets-header">
-                    <h2>الأكواد المحفوظة</h2>
-                    <span class="snippets-count" id="snippetsCount">0 كود</span>
-                </div>
-                <div class="snippets-grid" id="snippetsGrid"></div>
-
-                <div class="empty-state" id="emptyState">
-                    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="60" cy="60" r="50" stroke="url(#emptyGradient)" stroke-width="2" opacity="0.2"/>
-                        <path d="M35 70L25 60L35 50" stroke="url(#emptyGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
-                        <path d="M85 50L95 60L85 70" stroke="url(#emptyGradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"/>
-                        <path d="M70 40L50 80" stroke="url(#emptyGradient)" stroke-width="3" stroke-linecap="round" opacity="0.3"/>
-                        <defs>
-                            <linearGradient id="emptyGradient" x1="25" y1="60" x2="95" y2="60">
-                                <stop offset="0%" stop-color="#00d4ff"/>
-                                <stop offset="100%" stop-color="#9d4edd"/>
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                    <h3>لا توجد أكواد محفوظة بعد</h3>
-                    <p>ابدأ بإضافة أول كود برمجي لك!</p>
-                    <button class="btn btn-primary" onclick="document.getElementById('addSnippetBtn').click()">
-                        إضافة كود الآن
+                    <h2>الوسوم النشطة</h2>
+                    <button type="button" class="btn-text" id="clearFilterBtn" style="display: none;">
+                        <span>إلغاء التصفية ✕</span>
                     </button>
                 </div>
-            </div>
+                <div class="tags-container" id="tagsContainer">
+                    <!-- Dynamic tag buttons injected here -->
+                </div>
+            </section>
+
+            <!-- Snippets Grid Section -->
+            <section class="snippets-section" aria-label="الأكواد المحفوظة">
+                <div class="snippets-header">
+                    <h2>الأكواد المحفوظة</h2>
+                    <span class="snippets-count" id="snippetsCount" aria-live="polite">0 كود</span>
+                </div>
+
+                <div class="snippets-grid" id="snippetsGrid">
+                    <!-- Dynamic snippet cards injected here -->
+                </div>
+                
+                <!-- Empty State -->
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-state-icon">
+                        <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                            <polyline points="10 9 9 9 8 9"></polyline>
+                        </svg>
+                    </div>
+                    <h3>لا توجد أكواد محفوظة مطابقة</h3>
+                    <p>يمكنك إضافة كود جديد الآن أو تعديل معايير البحث والفلترة.</p>
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('addSnippetBtn').click()">
+                        <span>إضافة أول كود برمجى</span>
+                    </button>
+                </div>
+            </section>
         </div>
     </main>
 
-    <div class="modal" id="snippetModal">
+    <!-- Add/Edit Snippet Modal -->
+    <div class="modal" id="snippetModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-backdrop" id="modalBackdrop"></div>
         <div class="modal-content">
-            <div class="modal-header">
+            <header class="modal-header">
                 <h2 id="modalTitle">إضافة كود جديد</h2>
-                <button class="btn-close" id="closeModalBtn" type="button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path d="M18 6L6 18M6 6L18 18" stroke-width="2" stroke-linecap="round"/>
+                <button type="button" class="btn-close" id="closeModalBtn" title="إغلاق (Esc)" aria-label="إغلاق">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                 </button>
-            </div>
-
+            </header>
+            
             <form id="snippetForm" class="snippet-form">
                 <input type="hidden" id="snippetId">
-
+                
                 <div class="form-group">
-                    <label for="snippetTitle">عنوان الكود *</label>
-                    <input type="text" id="snippetTitle" class="form-input" placeholder="مثال: دالة لحساب المجموع" required>
+                    <label for="snippetTitle">عنوان الكود <span class="required-star">*</span></label>
+                    <input 
+                        type="text" 
+                        id="snippetTitle" 
+                        class="form-input" 
+                        placeholder="مثال: دالة لحساب المجموع التراكمي"
+                        required
+                        autocomplete="off"
+                    >
                 </div>
-
+                
                 <div class="form-group">
-                    <label for="snippetLanguage">لغة البرمجة *</label>
+                    <label for="snippetLanguage">لغة البرمجة <span class="required-star">*</span></label>
                     <select id="snippetLanguage" class="form-select" required>
-                        <option value="">-- اختر اللغة --</option>
+                        <option value="">-- اختر لغة البرمجة --</option>
                         <option value="javascript">JavaScript</option>
+                        <option value="typescript">TypeScript</option>
                         <option value="python">Python</option>
-                        <option value="php">PHP</option>
                         <option value="html">HTML</option>
                         <option value="css">CSS</option>
+                        <option value="php">PHP</option>
                         <option value="sql">SQL</option>
                         <option value="java">Java</option>
                         <option value="cpp">C++</option>
                         <option value="csharp">C#</option>
-                        <option value="typescript">TypeScript</option>
+                        <option value="c">C</option>
                         <option value="json">JSON</option>
                         <option value="markdown">Markdown</option>
-                        <option value="bash">Bash/Shell</option>
+                        <option value="bash">Bash / Shell</option>
                         <option value="ruby">Ruby</option>
                         <option value="go">Go</option>
+                        <option value="rust">Rust</option>
+                        <option value="kotlin">Kotlin</option>
+                        <option value="swift">Swift</option>
+                        <option value="yaml">YAML</option>
+                        <option value="xml">XML</option>
                     </select>
                 </div>
-
+                
                 <div class="form-group">
-                    <label for="snippetCode">الكود البرمجي *</label>
-                    <textarea id="snippetCode" class="form-textarea" rows="10" placeholder="// اكتب الكود هنا..." required style="display:none;"></textarea>
-                    <div id="snippetCodeEditor" class="code-editor"></div>
+                    <div class="form-label-row">
+                        <label for="snippetCode">الكود البرمجي <span class="required-star">*</span></label>
+                        <span class="char-count" id="codeLengthCount">0 حرف</span>
+                    </div>
+                    <textarea 
+                        id="snippetCode" 
+                        class="form-textarea code-editor-textarea" 
+                        rows="12"
+                        placeholder="// اكتب أو الصق الكود هنا... (يدعم مفتاح Tab للإزاحة)"
+                        required
+                        spellcheck="false"
+                    ></textarea>
                 </div>
-
+                
                 <div class="form-group">
                     <label for="snippetDescription">وصف الكود (اختياري)</label>
-                    <input type="text" id="snippetDescription" class="form-input" placeholder="شرح مختصر لما يفعله الكود">
+                    <input 
+                        type="text" 
+                        id="snippetDescription" 
+                        class="form-input" 
+                        placeholder="شرح مختصر عن كيفية عمل الكود أو استخدامه"
+                        autocomplete="off"
+                    >
                 </div>
-
+                
                 <div class="form-group">
                     <label for="snippetTags">الوسوم (اختياري)</label>
-                    <input type="text" id="snippetTags" class="form-input" placeholder="أدخل الوسوم مفصولة بفواصل (مثال: array, function, utility)">
+                    <input 
+                        type="text" 
+                        id="snippetTags" 
+                        class="form-input" 
+                        placeholder="مثال: array, sort, algorithm"
+                        autocomplete="off"
+                    >
                     <small class="form-hint">افصل بين الوسوم باستخدام الفاصلة (,)</small>
                 </div>
-
-                <div class="form-actions">
+                
+                <footer class="form-actions">
                     <button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button>
-                    <button type="submit" class="btn btn-primary">
-                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                            <path d="M16 10L8 18L4 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <button type="submit" class="btn btn-primary" id="saveSnippetSubmitBtn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                            <polyline points="7 3 7 8 15 8"></polyline>
                         </svg>
-                        حفظ الكود
+                        <span>حفظ الكود</span>
                     </button>
-                </div>
+                </footer>
             </form>
         </div>
     </div>
 
-    <div class="modal" id="importPreviewModal">
-        <div class="modal-backdrop" id="importPreviewBackdrop"></div>
-        <div class="modal-content import-preview-content">
-            <div class="modal-header">
-                <h2>معاينة الاستيراد</h2>
-                <button class="btn-close" id="importPreviewClose" type="button">✕</button>
-            </div>
-            <div class="snippet-form">
-                <div class="import-preview-summary" id="importPreviewSummary"></div>
-                <div class="import-preview-list" id="importPreviewList"></div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancelImportPreviewBtn">إلغاء</button>
-                    <button type="button" class="btn btn-secondary" id="importPreviewMergeBtn">دمج</button>
-                    <button type="button" class="btn btn-primary" id="importPreviewReplaceBtn">استبدال</button>
+    <!-- Dedicated Full Snippet Viewer Modal -->
+    <div class="modal modal-viewer" id="viewerModal" role="dialog" aria-modal="true" aria-labelledby="viewerTitle">
+        <div class="modal-backdrop" id="viewerBackdrop"></div>
+        <div class="modal-content modal-content-wide">
+            <header class="modal-header">
+                <div class="viewer-header-info">
+                    <h2 id="viewerTitle">عرض الكود</h2>
+                    <div class="viewer-meta-row">
+                        <span class="badge" id="viewerLanguageBadge">JavaScript</span>
+                        <span class="viewer-lines" id="viewerLinesCount">0 أسطر</span>
+                        <span class="viewer-date" id="viewerDate"></span>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" id="closeViewerBtn" title="إغلاق (Esc)" aria-label="إغلاق">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </header>
+
+            <div class="viewer-body">
+                <p class="viewer-description" id="viewerDescription"></p>
+
+                <div class="viewer-code-wrapper">
+                    <pre><code id="viewerCode" class="language-none"></code></pre>
+                </div>
+
+                <div class="viewer-tags-row" id="viewerTags">
+                    <!-- Dynamic tag pills injected here -->
                 </div>
             </div>
+
+            <footer class="viewer-footer">
+                <div class="viewer-actions-left">
+                    <button type="button" class="btn btn-secondary" id="viewerEditBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                        <span>تعديل هذا الكود</span>
+                    </button>
+                </div>
+                <div class="viewer-actions-right">
+                    <button type="button" class="btn btn-primary" id="viewerCopyBtn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span>نسخ الكود كاملاً</span>
+                    </button>
+                </div>
+            </footer>
         </div>
     </div>
 
-    <div class="toast" id="toast">
+    <!-- Import Preview & Options Modal -->
+    <div class="modal" id="importModal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+        <div class="modal-backdrop" id="importBackdrop"></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="importModalTitle">استيراد الأكواد البرمجية</h2>
+                <button type="button" class="btn-close" id="closeImportModalBtn" title="إغلاق (Esc)" aria-label="إغلاق">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </header>
+
+            <div class="modal-body">
+                <div class="alert alert-error" id="importError" style="display: none;"></div>
+                <div id="importSummary"></div>
+
+                <div class="import-options-group">
+                    <label class="import-option-label">
+                        <input type="radio" name="importMode" value="merge" checked>
+                        <div>
+                            <strong>الدمج الذكي (موصى به)</strong>
+                            <p>يتم الحفاظ على الأكواد الحالية، وإضافة الأكواد الجديدة، وتحديث الأكواد التي تحمل نفس المعرف.</p>
+                        </div>
+                    </label>
+
+                    <label class="import-option-label">
+                        <input type="radio" name="importMode" value="replace">
+                        <div>
+                            <strong>استبدال كامل</strong>
+                            <p class="text-danger">يتم حذف الأكواد الحالية واستبدالها بمحتوى الملف (سيتم إنشاء نسخة احتياطية تلقائياً).</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <footer class="form-actions">
+                <button type="button" class="btn btn-secondary" id="cancelImportBtn">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="confirmImportBtn">
+                    <span>تأكيد الاستيراد</span>
+                </button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Reference Modal -->
+    <div class="modal" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsModalTitle">
+        <div class="modal-backdrop" id="shortcutsBackdrop"></div>
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="shortcutsModalTitle">اختصارات لوحة المفاتيح</h2>
+                <button type="button" class="btn-close" id="closeShortcutsBtn" title="إغلاق (Esc)" aria-label="إغلاق">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </header>
+
+            <div class="modal-body">
+                <ul class="shortcuts-list">
+                    <li>
+                        <span>التركيز السريع على شريط البحث</span>
+                        <kbd>Ctrl</kbd> + <kbd>K</kbd> أو <kbd>/</kbd>
+                    </li>
+                    <li>
+                        <span>فتح نافذة إضافة كود جديد</span>
+                        <kbd>Alt</kbd> + <kbd>N</kbd> أو <kbd>Ctrl</kbd> + <kbd>B</kbd>
+                    </li>
+                    <li>
+                        <span>إغلاق أي نافذة منبثقة نشطة</span>
+                        <kbd>Escape</kbd>
+                    </li>
+                    <li>
+                        <span>إزاحة بمقدار مسافتين داخل محرر الكود</span>
+                        <kbd>Tab</kbd>
+                    </li>
+                    <li>
+                        <span>فتح نافذة الاختصارات هذه</span>
+                        <kbd>Ctrl</kbd> + <kbd>/</kbd>
+                    </li>
+                </ul>
+            </div>
+
+            <footer class="form-actions">
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('closeShortcutsBtn').click()">
+                    <span>فهمت ذلك</span>
+                </button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Non-Blocking Toast Notification -->
+    <div class="toast" id="toast" role="status" aria-live="polite">
         <div class="toast-content">
-            <svg class="toast-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                <path d="M16 10L8 18L4 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"></svg>
             <span class="toast-message" id="toastMessage"></span>
         </div>
     </div>
 
-    <input type="file" id="importFileInput" accept=".json,application/json" style="display:none" />
-
-    <div id="commandPalette" class="command-palette hidden" aria-hidden="true">
-        <div id="commandPaletteBackdrop" class="command-palette-backdrop"></div>
-        <div class="command-palette-panel" role="dialog" aria-modal="true" aria-label="لوحة الأوامر">
-            <div class="command-palette-header">
-                <strong>أوامر سريعة</strong>
-                <button type="button" id="commandPaletteClose" class="command-close-btn" aria-label="إغلاق">✕</button>
-            </div>
-            <input id="commandPaletteInput" type="text" placeholder="اكتب أمرًا أو ابحث..." />
-            <ul id="commandPaletteList"></ul>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/php/php.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+    <!-- Script Imports -->
     <script src="lib/prism/prism.js"></script>
+    <script src="lib/prism/prism-autoloader.js" data-autoloader-path="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/"></script>
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
