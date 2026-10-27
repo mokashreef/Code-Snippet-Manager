@@ -1,35 +1,11 @@
-/**
- * @fileoverview Persistence and Data Access Layer for Code Snippet Manager.
- * Handles schema validation, normalization, CRUD operations, indexing, multi-criteria
- * filtering, backup snapshots, and safe import/export mechanics.
- *
- * Architectural Decision:
- * 1. Storage Driver Abstraction: Gracefully handles environments where localStorage is
- *    restricted (e.g. private browsing mode, disabled cookies, or headless Node.js tests)
- *    by falling back to a memory-backed store.
- * 2. Immutable/Defensive Copies: Returned arrays and objects are cloned to avoid unintended
- *    mutations across module boundaries.
- * 3. Atomic Updates & Backups: Destructive operations (such as import with 'replace' mode)
- *    trigger an automatic backup snapshot to prevent permanent data loss.
- */
-
 import { generateId, parseTags } from './utils.js';
 
 export const STORAGE_KEY = 'code_snippets';
 export const BACKUP_KEY = 'code_snippets_backup';
 export const THEME_KEY = 'code_snippets_theme';
 
-/**
- * In-memory fallback map for environments lacking localStorage (e.g., Node.js test runner).
- */
 const memoryStorage = new Map();
 
-/**
- * Safe localStorage accessor ensuring cross-environment compatibility.
- * Detects if localStorage is accessible without throwing SecurityError.
- *
- * @returns {{ getItem: (key: string) => string|null, setItem: (key: string, val: string) => void, removeItem: (key: string) => void }}
- */
 function getStorageDriver() {
     try {
         if (typeof window !== 'undefined' && window.localStorage) {
@@ -39,7 +15,6 @@ function getStorageDriver() {
             return window.localStorage;
         }
     } catch (e) {
-        // localStorage is restricted or disabled; use memory fallback
     }
 
     return {
@@ -50,12 +25,6 @@ function getStorageDriver() {
     };
 }
 
-/**
- * Validates a snippet object structure against required schema rules.
- *
- * @param {unknown} snippet - Raw snippet object to validate
- * @returns {{ isValid: boolean, errors: string[] }} Validation result
- */
 export function validateSnippet(snippet) {
     const errors = [];
 
@@ -81,13 +50,6 @@ export function validateSnippet(snippet) {
     };
 }
 
-/**
- * Normalizes raw snippet data to ensure all expected properties are present,
- * typed correctly, and sanitized before persistence.
- *
- * @param {Object} raw - Untrusted or raw snippet data
- * @returns {Object} Normalized snippet object conforming to v2 schema
- */
 export function normalizeSnippet(raw) {
     const now = new Date().toISOString();
     return {
@@ -103,12 +65,6 @@ export function normalizeSnippet(raw) {
     };
 }
 
-/**
- * Retrieve all snippets from storage.
- * Reads JSON, normalizes schema if necessary, and returns a cloned array.
- *
- * @returns {Array<Object>} List of normalized snippets
- */
 export function getAllSnippets() {
     const driver = getStorageDriver();
     try {
@@ -128,12 +84,6 @@ export function getAllSnippets() {
     }
 }
 
-/**
- * Retrieve a single snippet by its unique identifier.
- *
- * @param {string} id - Snippet identifier
- * @returns {Object|null} Matching snippet or null if not found
- */
 export function getSnippet(id) {
     if (!id) return null;
     const snippets = getAllSnippets();
@@ -141,13 +91,6 @@ export function getSnippet(id) {
     return found ? { ...found } : null;
 }
 
-/**
- * Save a snippet (inserts a new record or updates an existing one).
- * Maintains `createdAt` and `updatedAt` timestamps automatically.
- *
- * @param {Object} snippet - Snippet data payload
- * @returns {{ success: boolean, snippet?: Object, errors?: string[] }} Result object
- */
 export function saveSnippet(snippet) {
     const validation = validateSnippet(snippet);
     if (!validation.isValid) {
@@ -161,12 +104,10 @@ export function saveSnippet(snippet) {
         const existingIndex = snippets.findIndex(s => s.id === normalized.id);
 
         if (existingIndex !== -1) {
-            // Preserve original creation timestamp on updates
             normalized.createdAt = snippets[existingIndex].createdAt || normalized.createdAt;
             normalized.updatedAt = new Date().toISOString();
             snippets[existingIndex] = normalized;
         } else {
-            // New snippet: prepend to list so it displays prominently
             normalized.createdAt = new Date().toISOString();
             normalized.updatedAt = normalized.createdAt;
             snippets.unshift(normalized);
@@ -180,12 +121,6 @@ export function saveSnippet(snippet) {
     }
 }
 
-/**
- * Delete a snippet by its unique identifier.
- *
- * @param {string} id - Snippet identifier to remove
- * @returns {boolean} True if deletion succeeded, false otherwise
- */
 export function deleteSnippet(id) {
     if (!id) return false;
 
@@ -196,7 +131,7 @@ export function deleteSnippet(id) {
         const filtered = snippets.filter(snippet => snippet.id !== id);
 
         if (filtered.length === initialLength) {
-            return false; // Snippet was not found
+            return false;
         }
 
         driver.setItem(STORAGE_KEY, JSON.stringify(filtered));
@@ -207,12 +142,6 @@ export function deleteSnippet(id) {
     }
 }
 
-/**
- * Toggle the favorite / bookmark status for a snippet.
- *
- * @param {string} id - Snippet identifier
- * @returns {{ success: boolean, isFavorite?: boolean }} Result of toggle operation
- */
 export function toggleFavorite(id) {
     if (!id) return { success: false };
 
@@ -234,11 +163,6 @@ export function toggleFavorite(id) {
     }
 }
 
-/**
- * Collect and index all unique tags across snippets, sorted by usage frequency descending.
- *
- * @returns {Array<{ name: string, count: number }>} Tag frequency catalog
- */
 export function getAllTags() {
     const snippets = getAllSnippets();
     const tagMap = new Map();
@@ -256,19 +180,6 @@ export function getAllTags() {
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-/**
- * Comprehensive search, filter, and sorting query engine.
- * Supports multi-field free text search (title, code, description, tags, language),
- * tag filtering, language filtering, favorites-only filter, and multi-criteria sorting.
- *
- * @param {Object} [options={}] - Search criteria options
- * @param {string} [options.query=''] - Free-text search string
- * @param {string} [options.tag=''] - Exact tag to filter by
- * @param {string} [options.language=''] - Language to filter by
- * @param {boolean} [options.favoritesOnly=false] - Restrict to favorites
- * @param {string} [options.sortBy='updated-desc'] - Sort strategy: 'updated-desc' | 'updated-asc' | 'created-desc' | 'created-asc' | 'title-asc' | 'title-desc'
- * @returns {Array<Object>} Filtered and sorted snippets
- */
 export function searchSnippets({
     query = '',
     tag = '',
@@ -278,24 +189,20 @@ export function searchSnippets({
 } = {}) {
     let results = getAllSnippets();
 
-    // 1. Tag filter
     if (tag) {
         const normalizedTag = tag.toLowerCase().trim();
         results = results.filter(s => Array.isArray(s.tags) && s.tags.includes(normalizedTag));
     }
 
-    // 2. Language filter
     if (language) {
         const normalizedLang = language.toLowerCase().trim();
         results = results.filter(s => s.language === normalizedLang);
     }
 
-    // 3. Favorites only filter
     if (favoritesOnly) {
         results = results.filter(s => s.isFavorite === true);
     }
 
-    // 4. Free-text search query across multiple fields
     const trimmedQuery = query.trim().toLowerCase();
     if (trimmedQuery) {
         results = results.filter(snippet => {
@@ -308,7 +215,6 @@ export function searchSnippets({
         });
     }
 
-    // 5. Sorting strategy
     results.sort((a, b) => {
         switch (sortBy) {
             case 'updated-asc':
@@ -330,11 +236,6 @@ export function searchSnippets({
     return results;
 }
 
-/**
- * Calculate statistical summary metrics for dashboard presentation.
- *
- * @returns {{ totalSnippets: number, totalFavorites: number, totalTags: number, languagesCount: number }} Summary stats
- */
 export function getStatistics() {
     const snippets = getAllSnippets();
     const tags = getAllTags();
@@ -349,12 +250,6 @@ export function getStatistics() {
     };
 }
 
-/**
- * Export all snippets to a standardized JSON schema with metadata envelope.
- * Includes export timestamp, application version, and item count.
- *
- * @returns {string} Formatted JSON string
- */
 export function exportSnippets() {
     const snippets = getAllSnippets();
     const exportEnvelope = {
@@ -368,13 +263,6 @@ export function exportSnippets() {
     return JSON.stringify(exportEnvelope, null, 2);
 }
 
-/**
- * Validate imported JSON data prior to executing persistence changes.
- * Supports both legacy raw array format and v2 metadata-envelope format.
- *
- * @param {string} jsonString - Raw imported string
- * @returns {{ isValid: boolean, error?: string, rawSnippets: Array<Object>, wouldAdd: number, wouldUpdate: number }} Validation details
- */
 export function validateImportData(jsonString) {
     if (typeof jsonString !== 'string' || !jsonString.trim()) {
         return { isValid: false, error: 'Empty file or invalid data provided.', rawSnippets: [], wouldAdd: 0, wouldUpdate: 0 };
@@ -387,7 +275,6 @@ export function validateImportData(jsonString) {
         return { isValid: false, error: 'Malformed JSON syntax: ' + e.message, rawSnippets: [], wouldAdd: 0, wouldUpdate: 0 };
     }
 
-    // Extract snippets from envelope or raw array
     const rawList = Array.isArray(parsed)
         ? parsed
         : (parsed && Array.isArray(parsed.snippets) ? parsed.snippets : null);
@@ -424,15 +311,6 @@ export function validateImportData(jsonString) {
     };
 }
 
-/**
- * Safely import snippets into persistent storage.
- * In 'replace' mode, automatically creates a recovery backup first.
- *
- * @param {string} jsonString - Raw JSON file contents
- * @param {Object} [options={}] - Import options
- * @param {'merge'|'replace'} [options.mode='merge'] - Resolution mode for incoming records
- * @returns {{ success: boolean, added: number, updated: number, error?: string }} Import results
- */
 export function importSnippets(jsonString, { mode = 'merge' } = {}) {
     const validation = validateImportData(jsonString);
     if (!validation.isValid) {
@@ -442,7 +320,6 @@ export function importSnippets(jsonString, { mode = 'merge' } = {}) {
     try {
         const driver = getStorageDriver();
 
-        // 1. Create automatic backup prior to destructive replace operation
         if (mode === 'replace') {
             backupCurrent();
         }
@@ -460,11 +337,9 @@ export function importSnippets(jsonString, { mode = 'merge' } = {}) {
             };
         }
 
-        // Merge mode: deduplicate based on snippet ID
         const existingList = getAllSnippets();
         const snippetMap = new Map();
 
-        // Index existing records
         for (const existing of existingList) {
             snippetMap.set(existing.id, existing);
         }
@@ -474,7 +349,6 @@ export function importSnippets(jsonString, { mode = 'merge' } = {}) {
 
         for (const incoming of validSnippets) {
             if (snippetMap.has(incoming.id)) {
-                // Update existing record while keeping creation date
                 const existing = snippetMap.get(incoming.id);
                 snippetMap.set(incoming.id, {
                     ...incoming,
@@ -483,7 +357,6 @@ export function importSnippets(jsonString, { mode = 'merge' } = {}) {
                 });
                 updatedCount++;
             } else {
-                // Insert brand new record
                 snippetMap.set(incoming.id, incoming);
                 addedCount++;
             }
@@ -503,11 +376,6 @@ export function importSnippets(jsonString, { mode = 'merge' } = {}) {
     }
 }
 
-/**
- * Create a snapshot backup of the current snippets collection.
- *
- * @returns {boolean} True if backup was created successfully
- */
 export function backupCurrent() {
     try {
         const driver = getStorageDriver();
@@ -527,11 +395,6 @@ export function backupCurrent() {
     }
 }
 
-/**
- * Retrieve metadata details of the currently stored backup snapshot.
- *
- * @returns {{ exists: boolean, createdAt?: string, count?: number }} Backup inspection info
- */
 export function getBackupInfo() {
     try {
         const driver = getStorageDriver();
@@ -551,11 +414,6 @@ export function getBackupInfo() {
     }
 }
 
-/**
- * Restore snippets from the stored backup snapshot.
- *
- * @returns {boolean} True if restore succeeded
- */
 export function restoreBackup() {
     try {
         const driver = getStorageDriver();
@@ -573,22 +431,12 @@ export function restoreBackup() {
     }
 }
 
-/**
- * Retrieve saved user theme preference from persistent storage.
- *
- * @returns {'dark'|'light'} Active theme setting ('dark' by default)
- */
 export function getStoredTheme() {
     const driver = getStorageDriver();
     const stored = driver.getItem(THEME_KEY);
     return stored === 'light' ? 'light' : 'dark';
 }
 
-/**
- * Persist user theme preference to storage.
- *
- * @param {'dark'|'light'} theme - Target theme value
- */
 export function setStoredTheme(theme) {
     const driver = getStorageDriver();
     driver.setItem(THEME_KEY, theme === 'light' ? 'light' : 'dark');

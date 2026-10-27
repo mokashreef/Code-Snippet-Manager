@@ -1,8 +1,3 @@
-/**
- * @fileoverview Automated Unit Tests for Utility Functions (`js/utils.js`).
- * Executed via Node.js native test runner (`node --test`).
- */
-
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {

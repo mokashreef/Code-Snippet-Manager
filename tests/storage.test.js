@@ -1,9 +1,3 @@
-/**
- * @fileoverview Automated Unit Tests for Storage and Data Persistence (`js/storage.js`).
- * Tests CRUD operations, schema validation, multi-field search, filtering,
- * tag aggregation, import/export validation, and snapshot recovery.
- */
-
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -27,7 +21,6 @@ import {
 } from '../js/storage.js';
 
 describe('Storage & Data Access Layer (`js/storage.js`)', () => {
-    // Clear storage before each test to guarantee test isolation
     beforeEach(() => {
         const all = getAllSnippets();
         for (const s of all) {
@@ -297,7 +290,6 @@ describe('Storage & Data Access Layer (`js/storage.js`)', () => {
             assert.strictEqual(getAllSnippets().length, 1);
             assert.strictEqual(getAllSnippets()[0].title, 'Replaced Single Item');
 
-            // Restore from automatic backup
             const restored = restoreBackup();
             assert.strictEqual(restored, true);
             assert.strictEqual(getAllSnippets().length, 1);

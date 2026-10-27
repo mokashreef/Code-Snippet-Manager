@@ -3,24 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Code Snippet Manager - أداة احترافية لإدارة وتخزين مقاطع الأكواد البرمجية والبحث فيها وتنظيمها بالوسوم والمفضلة.">
+    <meta name="description" content="Code Snippet Manager - أداة احترافية لإدارة وتخزين مقاطع الأكواد البرمجية والبحث فيها وتنظيمها بشكل سهل وآمن.">
     <meta name="theme-color" content="#0a0a0f">
     <title>Code Snippet Manager | مدير الأكواد البرمجية</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M9 22L2 16L9 10M23 10L30 16L23 22M19 6L13 26' stroke='%2300d4ff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-    
-    <!-- Prism.js for Code Syntax Highlighting -->
     <link rel="stylesheet" href="lib/prism/prism.css">
-    
-    <!-- Main Application Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
-    
-    <!-- Google Fonts: Cairo for Arabic UI, Fira Code for Code Presentation -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Main Application Header -->
     <header class="header" role="banner">
         <div class="container">
             <div class="header-top">
@@ -42,7 +35,6 @@
                     </div>
                 </div>
 
-                <!-- Primary Toolbar Actions -->
                 <div class="header-actions">
                     <button type="button" class="btn btn-primary" id="addSnippetBtn" title="إضافة كود جديد (Alt+N)">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -102,7 +94,6 @@
                 </div>
             </div>
 
-            <!-- Dashboard Summary Metrics -->
             <div class="stats-summary" id="statsSummary">
                 <div class="stat-item">
                     <span class="stat-label">إجمالي الأكواد:</span>
@@ -122,7 +113,6 @@
                 </div>
             </div>
 
-            <!-- Search and Filter Bar -->
             <div class="search-filter-wrapper">
                 <div class="search-container">
                     <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -172,10 +162,8 @@
         </div>
     </header>
 
-    <!-- Main Content Area -->
     <main class="main" role="main">
         <div class="container">
-            <!-- Tags Filter Section -->
             <section class="tags-section" id="tagsSection" aria-label="تصنيف حسب الوسوم">
                 <div class="tags-header">
                     <h2>الوسوم النشطة</h2>
@@ -183,23 +171,15 @@
                         <span>إلغاء التصفية ✕</span>
                     </button>
                 </div>
-                <div class="tags-container" id="tagsContainer">
-                    <!-- Dynamic tag buttons injected here -->
-                </div>
+                <div class="tags-container" id="tagsContainer"></div>
             </section>
 
-            <!-- Snippets Grid Section -->
             <section class="snippets-section" aria-label="الأكواد المحفوظة">
                 <div class="snippets-header">
                     <h2>الأكواد المحفوظة</h2>
                     <span class="snippets-count" id="snippetsCount" aria-live="polite">0 كود</span>
                 </div>
-
-                <div class="snippets-grid" id="snippetsGrid">
-                    <!-- Dynamic snippet cards injected here -->
-                </div>
-                
-                <!-- Empty State -->
+                <div class="snippets-grid" id="snippetsGrid"></div>
                 <div class="empty-state" id="emptyState" style="display: none;">
                     <div class="empty-state-icon">
                         <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -220,7 +200,6 @@
         </div>
     </main>
 
-    <!-- Add/Edit Snippet Modal -->
     <div class="modal" id="snippetModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-backdrop" id="modalBackdrop"></div>
         <div class="modal-content">
@@ -233,22 +212,12 @@
                     </svg>
                 </button>
             </header>
-            
             <form id="snippetForm" class="snippet-form">
                 <input type="hidden" id="snippetId">
-                
                 <div class="form-group">
                     <label for="snippetTitle">عنوان الكود <span class="required-star">*</span></label>
-                    <input 
-                        type="text" 
-                        id="snippetTitle" 
-                        class="form-input" 
-                        placeholder="مثال: دالة لحساب المجموع التراكمي"
-                        required
-                        autocomplete="off"
-                    >
+                    <input type="text" id="snippetTitle" class="form-input" placeholder="مثال: دالة لحساب المجموع التراكمي" required autocomplete="off">
                 </div>
-                
                 <div class="form-group">
                     <label for="snippetLanguage">لغة البرمجة <span class="required-star">*</span></label>
                     <select id="snippetLanguage" class="form-select" required>
@@ -276,45 +245,22 @@
                         <option value="xml">XML</option>
                     </select>
                 </div>
-                
                 <div class="form-group">
                     <div class="form-label-row">
                         <label for="snippetCode">الكود البرمجي <span class="required-star">*</span></label>
                         <span class="char-count" id="codeLengthCount">0 حرف</span>
                     </div>
-                    <textarea 
-                        id="snippetCode" 
-                        class="form-textarea code-editor-textarea" 
-                        rows="12"
-                        placeholder="// اكتب أو الصق الكود هنا... (يدعم مفتاح Tab للإزاحة)"
-                        required
-                        spellcheck="false"
-                    ></textarea>
+                    <textarea id="snippetCode" class="form-textarea code-editor-textarea" rows="12" placeholder="// اكتب أو الصق الكود هنا... (يدعم مفتاح Tab للإزاحة)" required spellcheck="false"></textarea>
                 </div>
-                
                 <div class="form-group">
                     <label for="snippetDescription">وصف الكود (اختياري)</label>
-                    <input 
-                        type="text" 
-                        id="snippetDescription" 
-                        class="form-input" 
-                        placeholder="شرح مختصر عن كيفية عمل الكود أو استخدامه"
-                        autocomplete="off"
-                    >
+                    <input type="text" id="snippetDescription" class="form-input" placeholder="شرح مختصر عن كيفية عمل الكود أو استخدامه" autocomplete="off">
                 </div>
-                
                 <div class="form-group">
                     <label for="snippetTags">الوسوم (اختياري)</label>
-                    <input 
-                        type="text" 
-                        id="snippetTags" 
-                        class="form-input" 
-                        placeholder="مثال: array, sort, algorithm"
-                        autocomplete="off"
-                    >
+                    <input type="text" id="snippetTags" class="form-input" placeholder="مثال: array, sort, algorithm" autocomplete="off">
                     <small class="form-hint">افصل بين الوسوم باستخدام الفاصلة (,)</small>
                 </div>
-                
                 <footer class="form-actions">
                     <button type="button" class="btn btn-secondary" id="cancelBtn">إلغاء</button>
                     <button type="submit" class="btn btn-primary" id="saveSnippetSubmitBtn">
@@ -330,7 +276,6 @@
         </div>
     </div>
 
-    <!-- Dedicated Full Snippet Viewer Modal -->
     <div class="modal modal-viewer" id="viewerModal" role="dialog" aria-modal="true" aria-labelledby="viewerTitle">
         <div class="modal-backdrop" id="viewerBackdrop"></div>
         <div class="modal-content modal-content-wide">
@@ -353,14 +298,10 @@
 
             <div class="viewer-body">
                 <p class="viewer-description" id="viewerDescription"></p>
-
                 <div class="viewer-code-wrapper">
                     <pre><code id="viewerCode" class="language-none"></code></pre>
                 </div>
-
-                <div class="viewer-tags-row" id="viewerTags">
-                    <!-- Dynamic tag pills injected here -->
-                </div>
+                <div class="viewer-tags-row" id="viewerTags"></div>
             </div>
 
             <footer class="viewer-footer">
@@ -386,7 +327,6 @@
         </div>
     </div>
 
-    <!-- Import Preview & Options Modal -->
     <div class="modal" id="importModal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
         <div class="modal-backdrop" id="importBackdrop"></div>
         <div class="modal-content">
@@ -432,7 +372,6 @@
         </div>
     </div>
 
-    <!-- Keyboard Shortcuts Reference Modal -->
     <div class="modal" id="shortcutsModal" role="dialog" aria-modal="true" aria-labelledby="shortcutsModalTitle">
         <div class="modal-backdrop" id="shortcutsBackdrop"></div>
         <div class="modal-content">
@@ -448,26 +387,11 @@
 
             <div class="modal-body">
                 <ul class="shortcuts-list">
-                    <li>
-                        <span>التركيز السريع على شريط البحث</span>
-                        <kbd>Ctrl</kbd> + <kbd>K</kbd> أو <kbd>/</kbd>
-                    </li>
-                    <li>
-                        <span>فتح نافذة إضافة كود جديد</span>
-                        <kbd>Alt</kbd> + <kbd>N</kbd> أو <kbd>Ctrl</kbd> + <kbd>B</kbd>
-                    </li>
-                    <li>
-                        <span>إغلاق أي نافذة منبثقة نشطة</span>
-                        <kbd>Escape</kbd>
-                    </li>
-                    <li>
-                        <span>إزاحة بمقدار مسافتين داخل محرر الكود</span>
-                        <kbd>Tab</kbd>
-                    </li>
-                    <li>
-                        <span>فتح نافذة الاختصارات هذه</span>
-                        <kbd>Ctrl</kbd> + <kbd>/</kbd>
-                    </li>
+                    <li><span>التركيز السريع على شريط البحث</span><kbd>Ctrl</kbd> + <kbd>K</kbd> أو <kbd>/</kbd></li>
+                    <li><span>فتح نافذة إضافة كود جديد</span><kbd>Alt</kbd> + <kbd>N</kbd> أو <kbd>Ctrl</kbd> + <kbd>B</kbd></li>
+                    <li><span>إغلاق أي نافذة منبثقة نشطة</span><kbd>Escape</kbd></li>
+                    <li><span>إزاحة بمقدار مسافتين داخل محرر الكود</span><kbd>Tab</kbd></li>
+                    <li><span>فتح نافذة الاختصارات هذه</span><kbd>Ctrl</kbd> + <kbd>/</kbd></li>
                 </ul>
             </div>
 
@@ -479,7 +403,6 @@
         </div>
     </div>
 
-    <!-- Non-Blocking Toast Notification -->
     <div class="toast" id="toast" role="status" aria-live="polite">
         <div class="toast-content">
             <svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"></svg>
@@ -487,7 +410,6 @@
         </div>
     </div>
 
-    <!-- Script Imports -->
     <script src="lib/prism/prism.js"></script>
     <script src="lib/prism/prism-autoloader.js" data-autoloader-path="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/"></script>
     <script type="module" src="js/app.js"></script>

@@ -1,25 +1,7 @@
-/**
- * @fileoverview Main Application Controller for Code Snippet Manager.
- * Orchestrates application lifecycle, event delegation, search/filter pipeline,
- * modal workflows, import/export operations, and global keyboard shortcuts.
- *
- * Architectural Decision:
- * 1. Single Directional Data Flow: UI actions mutate state, which requests updated data
- *    from the storage layer and triggers deterministic UI render updates.
- * 2. Event Delegation: Rather than binding separate event listeners to every generated card
- *    or tag pill, user actions are caught at parent container boundaries using semantic
- *    data-* attributes (`data-action`, `data-id`, `data-tag`).
- * 3. Non-Intrusive Keyboard Shortcuts: Global shortcuts (`Ctrl+K`, `Ctrl+N`, `Escape`, `Ctrl+/`)
- *    ignore keypresses that originate from inside active input or textarea controls.
- */
-
 import * as storage from './storage.js';
 import * as ui from './ui.js';
 import * as utils from './utils.js';
 
-/**
- * Reactive application state store.
- */
 const state = {
     searchQuery: '',
     currentTag: '',
@@ -30,33 +12,18 @@ const state = {
     isFormDirty: false
 };
 
-/**
- * Initialize application when DOM is ready.
- */
 export function init() {
-    // 1. Initialize user theme (defaults to dark mode)
     const storedTheme = storage.getStoredTheme();
     ui.applyTheme(storedTheme);
-
-    // 2. Populate language filter select dropdown
     populateLanguageFilter();
-
-    // 3. Render initial snippet list, tag cloud, and dashboard metrics
     refreshView();
-
-    // 4. Attach event listeners
     setupActionDelegation();
     setupToolbarListeners();
     setupFormListeners();
     setupImportExportListeners();
     setupKeyboardShortcuts();
-
-    console.info('🚀 Code Snippet Manager 2.0 initialized successfully.');
 }
 
-/**
- * Refresh snippets grid, tag filters, and dashboard summary metrics.
- */
 export function refreshView() {
     const snippets = storage.searchSnippets({
         query: state.searchQuery,
@@ -70,7 +37,6 @@ export function refreshView() {
     ui.renderTagFilters(storage.getAllTags(), state.currentTag);
     ui.renderStats(storage.getStatistics());
 
-    // Update result count display in search bar
     const searchCountEl = document.getElementById('searchCount');
     if (searchCountEl) {
         if (!state.searchQuery && !state.currentTag && !state.currentLanguage && !state.favoritesOnly) {
@@ -82,9 +48,6 @@ export function refreshView() {
     }
 }
 
-/**
- * Populate language filter options from the centralized language registry.
- */
 function populateLanguageFilter() {
     const select = document.getElementById('languageFilterSelect');
     if (!select) return;
@@ -98,10 +61,6 @@ function populateLanguageFilter() {
     }
 }
 
-/**
- * Setup event delegation on cards grid and tags container.
- * Prevents memory leaks and removes need to re-bind event handlers on re-render.
- */
 function setupActionDelegation() {
     const snippetsGrid = document.getElementById('snippetsGrid');
     if (snippetsGrid) {
@@ -128,11 +87,6 @@ function setupActionDelegation() {
     }
 }
 
-/**
- * Handler for delegated card clicks.
- *
- * @param {MouseEvent} e - Click event
- */
 async function handleGridAction(e) {
     const actionEl = e.target.closest('[data-action]');
     if (!actionEl) return;
@@ -206,11 +160,6 @@ async function handleGridAction(e) {
     }
 }
 
-/**
- * Toggle active tag filter on/off.
- *
- * @param {string} tag - Tag name
- */
 function toggleTagFilter(tag) {
     if (state.currentTag.toLowerCase() === (tag || '').toLowerCase()) {
         state.currentTag = '';
@@ -220,11 +169,7 @@ function toggleTagFilter(tag) {
     refreshView();
 }
 
-/**
- * Setup toolbar controls (Search, Favorites Filter, Language Filter, Sort, Theme Toggle).
- */
 function setupToolbarListeners() {
-    // 1. Add snippet button
     const addSnippetBtn = document.getElementById('addSnippetBtn');
     if (addSnippetBtn) {
         addSnippetBtn.addEventListener('click', () => {
@@ -233,7 +178,6 @@ function setupToolbarListeners() {
         });
     }
 
-    // 2. Debounced search input
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', utils.debounce((e) => {
@@ -242,7 +186,6 @@ function setupToolbarListeners() {
         }, 250));
     }
 
-    // 3. Favorites only filter button
     const filterFavoritesBtn = document.getElementById('filterFavoritesBtn');
     if (filterFavoritesBtn) {
         filterFavoritesBtn.addEventListener('click', () => {
@@ -253,7 +196,6 @@ function setupToolbarListeners() {
         });
     }
 
-    // 4. Language filter select
     const languageSelect = document.getElementById('languageFilterSelect');
     if (languageSelect) {
         languageSelect.addEventListener('change', (e) => {
@@ -262,7 +204,6 @@ function setupToolbarListeners() {
         });
     }
 
-    // 5. Sort by select
     const sortSelect = document.getElementById('sortSelect');
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {
@@ -271,7 +212,6 @@ function setupToolbarListeners() {
         });
     }
 
-    // 6. Theme toggle button
     const themeToggleBtn = document.getElementById('themeToggleBtn');
     if (themeToggleBtn) {
         themeToggleBtn.addEventListener('click', () => {
@@ -287,16 +227,12 @@ function setupToolbarListeners() {
         });
     }
 
-    // 7. Shortcuts reference button
     const shortcutsBtn = document.getElementById('shortcutsBtn');
     if (shortcutsBtn) {
         shortcutsBtn.addEventListener('click', ui.openShortcutsModal);
     }
 }
 
-/**
- * Setup snippet creation & edit form logic.
- */
 function setupFormListeners() {
     const form = document.getElementById('snippetForm');
     const codeTextarea = document.getElementById('snippetCode');
@@ -305,16 +241,13 @@ function setupFormListeners() {
     const closeModalBtn = document.getElementById('closeModalBtn');
     const modalBackdrop = document.getElementById('modalBackdrop');
 
-    // Track dirty state to guard against accidental data loss
     if (form) {
         form.addEventListener('input', () => {
             state.isFormDirty = true;
         });
-
         form.addEventListener('submit', handleFormSubmit);
     }
 
-    // Tab key handling inside code textarea: inserts 2 spaces instead of moving focus
     if (codeTextarea) {
         codeTextarea.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
@@ -329,7 +262,6 @@ function setupFormListeners() {
             }
         });
 
-        // Real-time character counter
         codeTextarea.addEventListener('input', () => {
             if (codeLengthCount) {
                 codeLengthCount.textContent = `${codeTextarea.value.length} حرف`;
@@ -337,7 +269,6 @@ function setupFormListeners() {
         });
     }
 
-    // Guarded modal dismiss function
     const safelyCloseEditModal = () => {
         if (state.isFormDirty) {
             const discard = ui.confirmDialog('لديك تعديلات غير محفوظة. هل تريد الخروج بدون حفظ؟');
@@ -351,13 +282,11 @@ function setupFormListeners() {
     if (closeModalBtn) closeModalBtn.addEventListener('click', safelyCloseEditModal);
     if (modalBackdrop) modalBackdrop.addEventListener('click', safelyCloseEditModal);
 
-    // Viewer modal close buttons
     const closeViewerBtn = document.getElementById('closeViewerBtn');
     const viewerBackdrop = document.getElementById('viewerBackdrop');
     if (closeViewerBtn) closeViewerBtn.addEventListener('click', ui.closeViewerModal);
     if (viewerBackdrop) viewerBackdrop.addEventListener('click', ui.closeViewerModal);
 
-    // Viewer modal actions (Copy and Edit)
     const viewerCopyBtn = document.getElementById('viewerCopyBtn');
     if (viewerCopyBtn) {
         viewerCopyBtn.addEventListener('click', async () => {
@@ -383,18 +312,12 @@ function setupFormListeners() {
         });
     }
 
-    // Shortcuts modal close
     const closeShortcutsBtn = document.getElementById('closeShortcutsBtn');
     const shortcutsBackdrop = document.getElementById('shortcutsBackdrop');
     if (closeShortcutsBtn) closeShortcutsBtn.addEventListener('click', ui.closeShortcutsModal);
     if (shortcutsBackdrop) shortcutsBackdrop.addEventListener('click', ui.closeShortcutsModal);
 }
 
-/**
- * Handle form submit for adding or updating a snippet.
- *
- * @param {SubmitEvent} e - Form submit event
- */
 function handleFormSubmit(e) {
     e.preventDefault();
 
@@ -436,11 +359,7 @@ function handleFormSubmit(e) {
     }
 }
 
-/**
- * Setup JSON Export, File Import, and Backup/Restore functionality.
- */
 function setupImportExportListeners() {
-    // 1. Export snippets as JSON file
     const exportBtn = document.getElementById('exportBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
@@ -459,19 +378,17 @@ function setupImportExportListeners() {
         });
     }
 
-    // 2. Import button triggers hidden file input
     const importBtn = document.getElementById('importBtn');
     const importFileInput = document.getElementById('importFileInput');
     if (importBtn && importFileInput) {
         importBtn.addEventListener('click', () => {
-            importFileInput.value = ''; // Reset file input
+            importFileInput.value = '';
             importFileInput.click();
         });
 
         importFileInput.addEventListener('change', handleImportFileSelect);
     }
 
-    // 3. Confirm import button inside preview modal
     const confirmImportBtn = document.getElementById('confirmImportBtn');
     if (confirmImportBtn) {
         confirmImportBtn.addEventListener('click', executeImport);
@@ -485,7 +402,6 @@ function setupImportExportListeners() {
     if (closeImportModalBtn) closeImportModalBtn.addEventListener('click', ui.closeImportModal);
     if (importBackdrop) importBackdrop.addEventListener('click', ui.closeImportModal);
 
-    // 4. Restore backup button
     const restoreBackupBtn = document.getElementById('restoreBackupBtn');
     if (restoreBackupBtn) {
         restoreBackupBtn.addEventListener('click', () => {
@@ -513,12 +429,6 @@ function setupImportExportListeners() {
     }
 }
 
-/**
- * Handle file selection for snippet import.
- * Reads file asynchronously, validates structure, and presents preview modal.
- *
- * @param {Event} e - Input change event
- */
 function handleImportFileSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -544,9 +454,6 @@ function handleImportFileSelect(e) {
     reader.readAsText(file, 'utf-8');
 }
 
-/**
- * Execute validated import according to user's selected resolution mode ('merge' or 'replace').
- */
 function executeImport() {
     if (!state.pendingImport || !state.pendingImport.rawContent) return;
 
@@ -570,20 +477,15 @@ function executeImport() {
     }
 }
 
-/**
- * Setup global productivity keyboard shortcuts.
- */
 function setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
         const isEditingField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
 
-        // Escape: Closes any active modal
         if (e.key === 'Escape') {
             ui.closeViewerModal();
             ui.closeShortcutsModal();
             ui.closeImportModal();
 
-            // Edit modal check with dirty state
             const editModal = document.getElementById('snippetModal');
             if (editModal?.classList.contains('active')) {
                 if (state.isFormDirty) {
@@ -599,7 +501,6 @@ function setupKeyboardShortcuts() {
             return;
         }
 
-        // Quick Search: Ctrl+K or '/' (when not typing in an input)
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
             e.preventDefault();
             const searchInput = document.getElementById('searchInput');
@@ -620,7 +521,6 @@ function setupKeyboardShortcuts() {
             return;
         }
 
-        // New Snippet: Ctrl+N (or Alt+N)
         if ((e.altKey && e.key.toLowerCase() === 'n') || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')) {
             e.preventDefault();
             state.isFormDirty = false;
@@ -628,7 +528,6 @@ function setupKeyboardShortcuts() {
             return;
         }
 
-        // Show Shortcuts Cheat Sheet: Ctrl + /
         if ((e.ctrlKey || e.metaKey) && e.key === '/') {
             e.preventDefault();
             ui.openShortcutsModal();
@@ -636,7 +535,6 @@ function setupKeyboardShortcuts() {
     });
 }
 
-// Bootstrap application once DOM tree is ready
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

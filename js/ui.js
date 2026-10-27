@@ -1,18 +1,3 @@
-/**
- * @fileoverview Presentation and UI Component Rendering Layer.
- * Manages DOM updates, card generation, modal dialogs, syntax highlighting triggers,
- * toast notifications, and event delegation hooks.
- *
- * Architecture & Security Note:
- * 1. XSS Defense-in-Depth: All dynamic text content is escaped through `escapeHtml`
- *    and `escapeAttribute` before being injected into HTML template literals.
- * 2. Event Delegation: Interactive card actions (copy, favorite, view, edit, delete)
- *    use clean `data-action` attributes and centralized delegation in `app.js` rather
- *    than polluting the global `window` scope with multiple disparate global handlers.
- * 3. Accessibility (a11y): Modals implement ARIA attributes (`role="dialog"`, `aria-modal="true"`),
- *    keyboard trap consideration, and proper focus restoration.
- */
-
 import {
     escapeHtml,
     escapeAttribute,
@@ -23,12 +8,6 @@ import {
     truncate
 } from './utils.js';
 
-/**
- * Render collection of snippet cards into the grid container.
- * Handles empty state toggling, result count display, and code highlighting triggers.
- *
- * @param {Array<Object>} snippets - Normalized snippets to display
- */
 export function renderSnippets(snippets) {
     const grid = document.getElementById('snippetsGrid');
     const emptyState = document.getElementById('emptyState');
@@ -38,7 +17,6 @@ export function renderSnippets(snippets) {
 
     const count = Array.isArray(snippets) ? snippets.length : 0;
 
-    // Localized count string (Arabic grammar pluralization)
     if (countDisplay) {
         if (count === 0) {
             countDisplay.textContent = 'لا توجد أكواد';
@@ -61,19 +39,10 @@ export function renderSnippets(snippets) {
 
     if (emptyState) emptyState.style.display = 'none';
 
-    // Generate card templates
     grid.innerHTML = snippets.map(snippet => renderSnippetCard(snippet)).join('');
-
-    // Trigger syntax highlighting on newly injected DOM elements
     highlightCode();
 }
 
-/**
- * Generate HTML string for an individual snippet card.
- *
- * @param {Object} snippet - Snippet data object
- * @returns {string} Sanitized HTML markup
- */
 export function renderSnippetCard(snippet) {
     const langColor = getLanguageColor(snippet.language);
     const langName = getLanguageName(snippet.language);
@@ -146,23 +115,13 @@ export function renderSnippetCard(snippet) {
                 </div>
             </header>
 
-            <h3 class="snippet-title" data-action="view" data-id="${escapeAttribute(snippet.id)}">
-                ${escapeHtml(snippet.title)}
-            </h3>
+            <h3 class="snippet-title" data-action="view" data-id="${escapeAttribute(snippet.id)}">${escapeHtml(snippet.title)}</h3>
 
-            ${snippet.description ? `
-                <p class="snippet-description">${escapeHtml(snippet.description)}</p>
-            ` : ''}
+            ${snippet.description ? `<p class="snippet-description">${escapeHtml(snippet.description)}</p>` : ''}
 
             <div class="snippet-code-wrapper" data-action="view" data-id="${escapeAttribute(snippet.id)}" title="انقر لعرض الكود كاملاً">
                 <pre><code class="language-${escapeAttribute(prismClass)}">${escapeHtml(previewCode)}</code></pre>
-                <button
-                    type="button"
-                    class="btn-copy"
-                    data-action="copy"
-                    data-id="${escapeAttribute(snippet.id)}"
-                    title="نسخ الكود"
-                >
+                <button type="button" class="btn-copy" data-action="copy" data-id="${escapeAttribute(snippet.id)}" title="نسخ الكود">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -182,23 +141,13 @@ export function renderSnippetCard(snippet) {
             ` : ''}
 
             <footer class="snippet-footer">
-                <span class="snippet-time" title="${escapeAttribute(snippet.updatedAt || snippet.createdAt)}">
-                    🕒 ${escapeHtml(timeAgo)}
-                </span>
-                <button type="button" class="btn-text snippet-view-link" data-action="view" data-id="${escapeAttribute(snippet.id)}">
-                    عرض الكود كامل &larr;
-                </button>
+                <span class="snippet-time" title="${escapeAttribute(snippet.updatedAt || snippet.createdAt)}">🕒 ${escapeHtml(timeAgo)}</span>
+                <button type="button" class="btn-text snippet-view-link" data-action="view" data-id="${escapeAttribute(snippet.id)}">عرض الكود كامل &larr;</button>
             </footer>
         </article>
     `;
 }
 
-/**
- * Render tag pills filter list with usage counts and clear button.
- *
- * @param {Array<{ name: string, count: number }>} tags - Tag list with counts
- * @param {string} [activeTag=''] - Currently selected tag
- */
 export function renderTagFilters(tags, activeTag = '') {
     const container = document.getElementById('tagsContainer');
     const clearBtn = document.getElementById('clearFilterBtn');
@@ -231,11 +180,6 @@ export function renderTagFilters(tags, activeTag = '') {
     }).join('');
 }
 
-/**
- * Update quick stats metrics in header or summary bar.
- *
- * @param {{ totalSnippets: number, totalFavorites: number, totalTags: number, languagesCount: number }} stats - Metrics
- */
 export function renderStats(stats) {
     const totalEl = document.getElementById('statTotalSnippets');
     const favsEl = document.getElementById('statFavorites');
@@ -248,13 +192,6 @@ export function renderStats(stats) {
     if (langsEl) langsEl.textContent = stats.languagesCount;
 }
 
-/**
- * Render and open the dedicated Full Snippet Viewer Modal.
- * Displays un-truncated code with syntax highlighting, line count, language badge,
- * full description, tags, copy, and edit shortcuts.
- *
- * @param {Object} snippet - Snippet to view
- */
 export function openViewerModal(snippet) {
     const modal = document.getElementById('viewerModal');
     if (!modal || !snippet) return;
@@ -321,15 +258,11 @@ export function openViewerModal(snippet) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
-    // Trigger Prism highlight on the viewer's code element
     if (window.Prism && codeEl) {
         Prism.highlightElement(codeEl);
     }
 }
 
-/**
- * Close the viewer modal.
- */
 export function closeViewerModal() {
     const modal = document.getElementById('viewerModal');
     if (modal) {
@@ -338,11 +271,6 @@ export function closeViewerModal() {
     }
 }
 
-/**
- * Open the Add/Edit Snippet Form Modal.
- *
- * @param {Object|null} [snippet=null] - Snippet to edit, or null to create a new one
- */
 export function openEditModal(snippet = null) {
     const modal = document.getElementById('snippetModal');
     const modalTitle = document.getElementById('modalTitle');
@@ -371,16 +299,12 @@ export function openEditModal(snippet = null) {
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
 
-    // Auto-focus title input
     setTimeout(() => {
         const titleInput = document.getElementById('snippetTitle');
         if (titleInput) titleInput.focus();
     }, 120);
 }
 
-/**
- * Close Add/Edit form modal.
- */
 export function closeEditModal() {
     const modal = document.getElementById('snippetModal');
     if (modal) {
@@ -389,11 +313,6 @@ export function closeEditModal() {
     }
 }
 
-/**
- * Open the Import Preview Modal.
- *
- * @param {{ isValid: boolean, error?: string, rawSnippets: Array<Object>, wouldAdd: number, wouldUpdate: number }} validation - Pre-import check
- */
 export function openImportModal(validation) {
     const modal = document.getElementById('importModal');
     if (!modal) return;
@@ -431,9 +350,6 @@ export function openImportModal(validation) {
     document.body.style.overflow = 'hidden';
 }
 
-/**
- * Close the Import Modal.
- */
 export function closeImportModal() {
     const modal = document.getElementById('importModal');
     if (modal) {
@@ -442,9 +358,6 @@ export function closeImportModal() {
     }
 }
 
-/**
- * Open the Keyboard Shortcuts Reference Modal.
- */
 export function openShortcutsModal() {
     const modal = document.getElementById('shortcutsModal');
     if (modal) {
@@ -453,9 +366,6 @@ export function openShortcutsModal() {
     }
 }
 
-/**
- * Close Keyboard Shortcuts Modal.
- */
 export function closeShortcutsModal() {
     const modal = document.getElementById('shortcutsModal');
     if (modal) {
@@ -464,13 +374,6 @@ export function closeShortcutsModal() {
     }
 }
 
-/**
- * Display a modern, non-blocking toast notification.
- *
- * @param {string} message - Notification text
- * @param {'success'|'error'|'info'|'warning'} [type='success'] - Toast level
- * @param {number} [duration=3500] - Duration in milliseconds before auto-dismiss
- */
 export function showToast(message, type = 'success', duration = 3500) {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toastMessage');
@@ -499,11 +402,6 @@ export function showToast(message, type = 'success', duration = 3500) {
     }, duration);
 }
 
-/**
- * Apply theme to document and update toggle button state.
- *
- * @param {'dark'|'light'} theme - 'dark' or 'light'
- */
 export function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     document.body.setAttribute('data-theme', theme);
@@ -532,10 +430,6 @@ export function applyTheme(theme) {
     }
 }
 
-/**
- * Trigger Prism syntax highlighting across elements.
- * Safely guards against situations where Prism may not yet be loaded or active.
- */
 export function highlightCode() {
     if (typeof window !== 'undefined' && window.Prism && typeof window.Prism.highlightAll === 'function') {
         try {
@@ -546,12 +440,6 @@ export function highlightCode() {
     }
 }
 
-/**
- * Standard confirmation dialog abstraction.
- *
- * @param {string} message - Confirmation prompt
- * @returns {boolean} User response
- */
 export function confirmDialog(message) {
     return window.confirm(message);
 }
