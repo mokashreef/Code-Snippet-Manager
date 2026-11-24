@@ -12,7 +12,8 @@ const state = {
     isFormDirty: false
 };
 
-export function init() {
+export async function init() {
+    await storage.initStorage();
     const storedTheme = storage.getStoredTheme();
     ui.applyTheme(storedTheme);
     populateLanguageFilter();

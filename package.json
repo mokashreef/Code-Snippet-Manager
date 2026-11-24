@@ -1,6 +1,6 @@
 {
   "name": "code-snippet-manager",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Professional code snippet management tool designed for developers to store, organize, search, and retrieve code snippets with syntax highlighting and smart tagging.",
   "type": "module",
   "main": "js/app.js",
@@ -20,6 +20,7 @@
     "syntax-highlighting",
     "developer-tools",
     "vanilla-javascript",
+    "indexeddb",
     "localstorage"
   ],
   "author": "mohammad abu kashreef <121912865+mokashreef@users.noreply.github.com>",

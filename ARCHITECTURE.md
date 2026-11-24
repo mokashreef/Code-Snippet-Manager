@@ -108,6 +108,9 @@ interface Snippet {
 2. **Defensive Copies**: `getAllSnippets()` returns deep copies of objects to prevent callers from directly mutating internal store state outside `saveSnippet()`.
 3. **Recovery Before Replacement**: When importing snippets in `replace` mode, the existing collection is automatically snapshotted into `code_snippets_backup` before overwriting.
 4. **Idempotent Merge Operations**: Importing existing IDs in `merge` mode performs an in-place property update rather than inserting duplicate records.
+5. **IndexedDB Primary Storage & >5MB Quota Exceedance**: Default storage subsystem connects to IndexedDB (`CodeSnippetManagerDB`), allowing hundreds of megabytes of client storage for thousands of extensive code snippets, bypassing the historical 5MB origin localStorage boundary.
+6. **Automated Zero-Data-Loss Migration**: On initial boot, any existing snippets in `localStorage` (`code_snippets`, `code_snippets_backup`, `code_snippets_theme`) are automatically migrated into IndexedDB. The legacy `code_snippets` key is then purged from localStorage to reclaim origin quota.
+7. **Transparent Multi-Tier Fallback**: If IndexedDB access is restricted by security policies or private browsing flags, the engine falls back gracefully to `localStorage` or an in-memory store without breaking application functionality.
 
 ---
 
@@ -123,7 +126,7 @@ interface Snippet {
    - JSON payload must be a valid array or metadata envelope. Each record is verified for required types (`title`, `code`, `language`) and normalized before storage insertion.
 
 3. **Client-Side Data Isolation**:
-   - All data resides entirely within the browser's origin-scoped `localStorage`. No telemetry, analytics, or snippet data is transmitted over external networks.
+   - All data resides entirely within origin-scoped browser storage (IndexedDB with localStorage fallback). Zero analytics, telemetry, or code content is ever transmitted over external networks.
 
 ---
 

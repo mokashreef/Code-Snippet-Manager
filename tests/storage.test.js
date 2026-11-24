@@ -2,23 +2,37 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     saveSnippet,
+    saveSnippetAsync,
     getSnippet,
     getAllSnippets,
+    getAllSnippetsAsync,
     deleteSnippet,
+    deleteSnippetAsync,
     toggleFavorite,
+    toggleFavoriteAsync,
     getAllTags,
     searchSnippets,
     getStatistics,
     exportSnippets,
     validateImportData,
     importSnippets,
+    importSnippetsAsync,
     backupCurrent,
     restoreBackup,
     validateSnippet,
     normalizeSnippet,
     getStoredTheme,
-    setStoredTheme
+    setStoredTheme,
+    IndexedDBStorageDriver,
+    migrateFromLocalStorage,
+    initStorage,
+    resetStorageState,
+    getActiveDriverType,
+    STORAGE_KEY,
+    BACKUP_KEY,
+    THEME_KEY
 } from '../js/storage.js';
+import { createMockIndexedDB, createMockLocalStorage } from './mock-idb.js';
 
 describe('Storage & Data Access Layer (`js/storage.js`)', () => {
     beforeEach(() => {
@@ -231,7 +245,7 @@ describe('Storage & Data Access Layer (`js/storage.js`)', () => {
             const parsed = JSON.parse(json);
 
             assert.strictEqual(parsed.app, 'Code Snippet Manager');
-            assert.strictEqual(parsed.version, '2.0.0');
+            assert.strictEqual(parsed.version, '2.1.0');
             assert.ok(Array.isArray(parsed.snippets));
             assert.strictEqual(parsed.snippets.length, 1);
         });
@@ -304,6 +318,176 @@ describe('Storage & Data Access Layer (`js/storage.js`)', () => {
 
             setStoredTheme('dark');
             assert.strictEqual(getStoredTheme(), 'dark');
+        });
+    });
+
+    describe('IndexedDB Storage Driver & Quota Resilience', () => {
+        let mockIdb;
+
+        beforeEach(() => {
+            mockIdb = createMockIndexedDB();
+            resetStorageState();
+        });
+
+        describe('IndexedDBStorageDriver Core Operations', () => {
+            it('should open database and perform getItem, setItem, removeItem and clear', async () => {
+                const driver = new IndexedDBStorageDriver('TestDB', 'test_store', mockIdb);
+                assert.strictEqual(driver.isSupported(), true);
+
+                await driver.setItem('key1', 'value1');
+                const val1 = await driver.getItem('key1');
+                assert.strictEqual(val1, 'value1');
+
+                const missing = await driver.getItem('nonexistent');
+                assert.strictEqual(missing, null);
+
+                await driver.removeItem('key1');
+                const afterDelete = await driver.getItem('key1');
+                assert.strictEqual(afterDelete, null);
+
+                await driver.setItem('k1', 'v1');
+                await driver.setItem('k2', 'v2');
+                await driver.clear();
+                assert.strictEqual(await driver.getItem('k1'), null);
+                assert.strictEqual(await driver.getItem('k2'), null);
+            });
+        });
+
+        describe('Large Payload & 5MB Quota Resilience', () => {
+            it('should demonstrate localStorage quota failure for payloads > 5MB', () => {
+                const mockLs = createMockLocalStorage(5 * 1024 * 1024);
+                // 2MB characters (4MB UTF-16 bytes) fits within 5MB quota
+                const chunk2MB = 'A'.repeat(2 * 1024 * 1024);
+                mockLs.setItem('test2mb', chunk2MB);
+                assert.strictEqual(mockLs.getItem('test2mb').length, 2 * 1024 * 1024);
+
+                // Adding another 2MB exceeds the 5MB quota limit and throws QuotaExceededError
+                assert.throws(() => {
+                    mockLs.setItem('test2mb_second', chunk2MB);
+                }, /QuotaExceededError/);
+            });
+
+            it('should successfully store and retrieve payloads exceeding 5MB via IndexedDB without error', async () => {
+                const driver = new IndexedDBStorageDriver('LargePayloadDB', 'snippets_store', mockIdb);
+                await driver.init();
+
+                // Generate a 6MB payload (6 * 1024 * 1024 characters) simulating hundreds of large code files
+                const largeCodePayload = 'console.log("data");\n'.repeat(300000); // ~6.3 MB
+                assert.ok(largeCodePayload.length > 5 * 1024 * 1024, 'Payload must exceed standard 5MB browser quota');
+
+                const largeSnippet = {
+                    id: 'large-snippet-quota-test',
+                    title: 'Massive Infrastructure Config',
+                    language: 'yaml',
+                    code: largeCodePayload,
+                    tags: ['large', 'infrastructure']
+                };
+
+                const serialized = JSON.stringify([largeSnippet]);
+                await driver.setItem(STORAGE_KEY, serialized);
+
+                const retrieved = await driver.getItem(STORAGE_KEY);
+                assert.ok(retrieved);
+                assert.strictEqual(retrieved.length, serialized.length);
+
+                const parsed = JSON.parse(retrieved);
+                assert.strictEqual(parsed.length, 1);
+                assert.strictEqual(parsed[0].id, 'large-snippet-quota-test');
+                assert.strictEqual(parsed[0].code.length, largeCodePayload.length);
+            });
+        });
+
+        describe('Automated Migration from localStorage', () => {
+            it('should automatically migrate snippets from localStorage to IndexedDB and clear legacy key', async () => {
+                const mockLs = createMockLocalStorage();
+                const legacySnippets = [
+                    { id: 'legacy-1', title: 'Legacy Snippet 1', code: 'x = 1', language: 'python', tags: ['old'] },
+                    { id: 'legacy-2', title: 'Legacy Snippet 2', code: 'y = 2', language: 'python', tags: ['old'] }
+                ];
+
+                mockLs.setItem(STORAGE_KEY, JSON.stringify(legacySnippets));
+                mockLs.setItem(BACKUP_KEY, JSON.stringify({ createdAt: '2026-01-01', data: '[]' }));
+                mockLs.setItem(THEME_KEY, 'light');
+
+                const driver = new IndexedDBStorageDriver('MigrationDB', 'snippets_store', mockIdb);
+                await driver.init();
+
+                const migrationResult = await migrateFromLocalStorage(driver, mockLs);
+                assert.strictEqual(migrationResult.migrated, true);
+                assert.strictEqual(migrationResult.count, 2);
+
+                // Verify migrated data in IndexedDB
+                const idbData = await driver.getItem(STORAGE_KEY);
+                assert.ok(idbData);
+                const parsedIdb = JSON.parse(idbData);
+                assert.strictEqual(parsedIdb.length, 2);
+                assert.strictEqual(parsedIdb[0].title, 'Legacy Snippet 1');
+
+                // Verify legacy key is cleared from localStorage to reclaim 5MB quota
+                assert.strictEqual(mockLs.getItem(STORAGE_KEY), null);
+                assert.strictEqual(mockLs.getItem(BACKUP_KEY), null);
+
+                // Verify migration is idempotent
+                const secondMigration = await migrateFromLocalStorage(driver, mockLs);
+                assert.strictEqual(secondMigration.migrated, false);
+            });
+        });
+
+        describe('initStorage & Fallback Resilience', () => {
+            it('should initialize IndexedDB driver and report indexeddb driver type', async () => {
+                const initRes = await initStorage({ idbFactory: mockIdb, dbName: 'InitTestDB' });
+                assert.strictEqual(initRes.driverType, 'indexeddb');
+                assert.strictEqual(getActiveDriverType(), 'indexeddb');
+            });
+
+            it('should fall back gracefully to memory/localStorage if IndexedDB throws SecurityError', async () => {
+                const failingIdb = {
+                    open() {
+                        const err = new Error('SecurityError: The operation is insecure.');
+                        err.name = 'SecurityError';
+                        throw err;
+                    }
+                };
+
+                const initRes = await initStorage({ idbFactory: failingIdb });
+                assert.ok(initRes.driverType === 'memory' || initRes.driverType === 'localstorage');
+
+                // App still functions normally with fallback driver
+                const saveRes = saveSnippet({
+                    title: 'Fallback Snippet',
+                    code: 'const fallback = true;',
+                    language: 'javascript'
+                });
+                assert.strictEqual(saveRes.success, true);
+                assert.strictEqual(getAllSnippets().length, 1);
+            });
+        });
+
+        describe('Asynchronous CRUD Operations', () => {
+            it('should support saveSnippetAsync, getAllSnippetsAsync, toggleFavoriteAsync, and deleteSnippetAsync', async () => {
+                await initStorage({ idbFactory: mockIdb, dbName: 'AsyncCrudDB' });
+
+                const saveRes = await saveSnippetAsync({
+                    title: 'Async Saved Snippet',
+                    code: 'await doSomething();',
+                    language: 'javascript',
+                    tags: ['async', 'test']
+                });
+                assert.strictEqual(saveRes.success, true);
+                const snippetId = saveRes.snippet.id;
+
+                const allSnippets = await getAllSnippetsAsync();
+                assert.strictEqual(allSnippets.length, 1);
+                assert.strictEqual(allSnippets[0].title, 'Async Saved Snippet');
+
+                const favRes = await toggleFavoriteAsync(snippetId);
+                assert.strictEqual(favRes.success, true);
+                assert.strictEqual(favRes.isFavorite, true);
+
+                const delRes = await deleteSnippetAsync(snippetId);
+                assert.strictEqual(delRes, true);
+                assert.strictEqual((await getAllSnippetsAsync()).length, 0);
+            });
         });
     });
 });
